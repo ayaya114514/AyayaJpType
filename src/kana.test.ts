@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildWord, Typer, type KeyResult } from './kana'
+import { buildWord, Session, Typer, wordOf, type KeyResult } from './kana'
 import words from './words.json'
 
 function type(reading: string, romaji: string, keys: string): KeyResult[] {
-  const typer = new Typer(buildWord(reading, romaji))
+  const typer = new Typer([buildWord(reading, romaji)])
   return [...keys].map((k) => typer.key(k))
 }
 
@@ -42,9 +42,6 @@ describe('Typer', () => {
 
   it('词尾 ん 打一个 n 就完成', () => {
     expect(type('ほん', 'hon', 'hon')).toEqual(['ok', 'ok', 'done'])
-    const typer = new Typer(buildWord('ほん', 'hon'))
-    for (const k of 'hon') typer.key(k)
-    expect(typer.endsWithSingleN()).toBe(true)
   })
 
   it('促音：双写辅音、tch、xtu', () => {
@@ -69,7 +66,7 @@ describe('Typer', () => {
   it('提示按 romaji 的空格分词，按已打内容更新', () => {
     const word = buildWord('きをつける', 'ki o tsukeru')
     expect([...word.gaps]).toEqual([1, 2])
-    const typer = new Typer(word)
+    const typer = new Typer([word])
     for (const k of 'kiot') typer.key(k)
     expect(typer.progress().map(([a, b]) => a + b).join('')).toBe('kiotsukeru')
     typer.key('u')
@@ -77,13 +74,56 @@ describe('Typer', () => {
     expect(typer.index).toBe(3)
   })
 
+  it('多读音：任一读法都算对，显示优先主读音', () => {
+    const typer = new Typer([buildWord('つゆ', 'tsuyu'), wordOf('ばいう')])
+    expect(typer.progress().map(([, b]) => b).join('')).toBe('tsuyu')
+    expect([...'baiu'].map((k) => typer.key(k)).at(-1)).toBe('done')
+    expect(new Typer([buildWord('つゆ', 'tsuyu'), wordOf('ばいう')]).key('x')).toBe('miss')
+  })
+
   it('读音和 romaji 对不上时报错', () => {
     expect(() => buildWord('はな', 'hama')).toThrow()
   })
 })
 
+function play(queue: [string, string][][], keys: string) {
+  const session = new Session(queue.map((readings) => readings.map(([r, roma]) => buildWord(r, roma))))
+  for (const k of keys) session.key(k)
+  return session
+}
+
+describe('Session', () => {
+  const hon: [string, string][] = [['ほん', 'hon']]
+  const nani: [string, string][] = [['なに', 'nani']]
+  const ame: [string, string][] = [['あめ', 'ame']]
+  const inu: [string, string][] = [['いぬ', 'inu']]
+
+  it('词尾 ん 多打一个 n 不算错', () => {
+    expect(play([hon, ame], 'honname')).toMatchObject({ misses: 0, finished: true })
+    expect(play([hon, ame], 'honame')).toMatchObject({ misses: 0, finished: true })
+  })
+
+  it('下一个词以 な 行开头时 n / nn 都行', () => {
+    expect(play([hon, nani], 'honnnani')).toMatchObject({ misses: 0, finished: true })
+    expect(play([hon, nani], 'honnani')).toMatchObject({ misses: 0, finished: true })
+  })
+
+  it('何 打 nan 已完成，想打 nani 时多出的 i 不算错', () => {
+    const nan: [string, string][] = [['なん', 'nan'], ['なに', 'nani']]
+    expect(play([nan, ame], 'naniame')).toMatchObject({ misses: 0, finished: true })
+    expect(play([nan, inu], 'naniinu')).toMatchObject({ misses: 0, finished: true })
+    expect(play([nan, inu], 'naninu')).toMatchObject({ misses: 0, finished: true })
+  })
+
+  it('真打错照样记到对应的词上', () => {
+    const session = play([hon, ame], 'hoqnaqme')
+    expect(session.finished).toBe(true)
+    expect(session.wordMisses).toEqual([1, 1])
+  })
+})
+
 describe('words.json', () => {
-  const all = Object.values(words).flat()
+  const all = Object.values(words).flat() as [string, string, string, string, string, string[]][]
 
   it('三个级别都有词', () => {
     expect(Object.keys(words)).toEqual(['N5', 'N4', 'N3'])
@@ -91,9 +131,9 @@ describe('words.json', () => {
   })
 
   it('每个词按词表 romaji 打都能一键不错地打完，提示和 romaji 一致', () => {
-    for (const [id, , reading, romaji] of all) {
+    for (const [id, , reading, romaji, , variants] of all) {
       const word = buildWord(reading, romaji)
-      const typer = new Typer(word)
+      const typer = new Typer([word, ...variants.map(wordOf)])
       const plain = romaji.replace(/ /g, '')
       expect(typer.progress().map(([, rest]) => rest).join(''), id).toBe(plain)
       const results = [...plain].map((k) => typer.key(k))

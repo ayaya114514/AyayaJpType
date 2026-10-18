@@ -1,15 +1,15 @@
 import './style.css'
-import { buildWord, Typer } from './kana'
+import { buildWord, Session, wordOf } from './kana'
 import {
   isPassed,
   isUnlocked,
   LEVELS,
+  MAX_UNKNOWN,
   parseProgress,
   passedCount,
   record,
   shuffle,
   STAGES,
-  STAR_RULES,
   starsFor,
   type Entry,
   type Level,
@@ -32,9 +32,11 @@ const meaningEl = $<HTMLDivElement>('meaning')
 const romajiEl = $<HTMLDivElement>('romaji')
 const keysInput = $<HTMLInputElement>('keys')
 const warnEl = $<HTMLParagraphElement>('warn')
-const upnextEl = $<HTMLParagraphElement>('upnext')
+const previousEl = $<HTMLParagraphElement>('previous')
+const revealButton = $<HTMLButtonElement>('reveal')
 
-const PROGRESS_KEY = 'ayaya-jp-type:progress'
+// v2：改成盲打后星级按“会的词数”算，和之前看提示打的成绩不可比
+const PROGRESS_KEY = 'ayaya-jp-type:progress:v2'
 const LEVEL_KEY = 'ayaya-jp-type:level'
 
 // localStorage 在隐私模式等情况下可能抛错，读写都兜住
@@ -137,16 +139,11 @@ interface Run {
   level: Level
   stage: number
   words: Entry[]
-  index: number
-  typer: Typer
+  session: Session
+  /** 看过答案的词 */
+  revealed: boolean[]
   startedAt: number
   endedAt: number
-  correct: number
-  misses: number
-  wordMisses: number[]
-  /** 上一个词以只打了一个 n 的 ん 结束：紧接着的 n 可能是习惯性的 nn */
-  strayN: boolean
-  heldN: boolean
 }
 
 let run: Run | null = null
@@ -158,23 +155,19 @@ function startStage(lv: Level, stage: number) {
     level: lv,
     stage,
     words,
-    index: 0,
-    typer: new Typer(buildWord(words[0].reading, words[0].romaji)),
+    session: new Session(words.map((e) => [buildWord(e.reading, e.romaji), ...e.variants.map(wordOf)])),
+    revealed: words.map(() => false),
     startedAt: 0,
     endedAt: 0,
-    correct: 0,
-    misses: 0,
-    wordMisses: words.map(() => 0),
-    strayN: false,
-    heldN: false,
   }
   whereEl.textContent = `${lv} · 第 ${stage + 1} 关`
   warnEl.hidden = true
+  previousEl.replaceChildren()
   show('play')
   renderWord()
   renderLive()
   clearInterval(ticker)
-  ticker = window.setInterval(renderLive, 250)
+  ticker = window.setInterval(renderLive, 500)
   focusKeys()
 }
 
@@ -185,56 +178,80 @@ function focusKeys() {
 }
 
 const elapsedMinutes = (r: Run) => ((r.endedAt || performance.now()) - r.startedAt) / 60000
-const accuracyOf = (r: Run) => (r.correct + r.misses ? r.correct / (r.correct + r.misses) : 1)
-const kpmOf = (r: Run) => (r.startedAt ? r.correct / Math.max(elapsedMinutes(r), 1 / 600) : 0)
+const accuracyOf = ({ session }: Run) =>
+  session.correct + session.misses ? session.correct / (session.correct + session.misses) : 1
+const isKnown = (r: Run, i: number) => !r.revealed[i] && r.session.wordMisses[i] === 0
 
 function renderLive() {
   if (!run) return
-  const counter = `${Math.min(run.index + 1, run.words.length)} / ${run.words.length}`
-  liveEl.textContent = run.startedAt
-    ? `${counter} · ${Math.round(accuracyOf(run) * 100)}% · ${Math.round(kpmOf(run))} 键/分`
-    : counter
+  const { session, words } = run
+  const counter = `${Math.min(session.index + 1, words.length)} / ${words.length}`
+  const unknown = words.slice(0, session.index + 1).filter((_, i) => !isKnown(run!, i)).length
+  liveEl.textContent = run.startedAt ? `${counter} · 不会 ${unknown}` : counter
 }
 
 function renderWord() {
   if (!run) return
-  const entry = run.words[run.index]
+  const { session, words } = run
+  const entry = words[session.index]
   const kanaOnly = entry.headword === entry.reading
   headwordEl.textContent = kanaOnly ? '' : entry.headword
   headwordEl.hidden = kanaOnly
   readingEl.classList.toggle('solo', kanaOnly)
   meaningEl.textContent = entry.meaning
-  const upcoming = run.words[run.index + 1]
-  upnextEl.textContent = upcoming ? `下一个 ${upcoming.headword}` : ''
-  fillEl.style.width = `${(run.index / run.words.length) * 100}%`
+  revealButton.hidden = false
+  fillEl.style.width = `${(session.index / words.length) * 100}%`
   renderTyping()
 }
 
 function renderTyping() {
   if (!run) return
-  const { typer } = run
+  const { session } = run
+  const { typer } = session
+  const revealed = run.revealed[session.index]
+  const kanaOnly = run.words[session.index].headword === run.words[session.index].reading
+  // 盲打：读音只显示打对的部分；假名词的词形本身就是读音，看答案后也整个显示
   const { units, gaps } = typer.word
   const doneUnits = typer.index
-
   readingEl.replaceChildren(
-    ...units.map((unit, i) => el('span', i < doneUnits ? 'done' : '', unit.kana)),
+    ...units.flatMap((unit, i) => {
+      if (i < doneUnits) return [el('span', 'done', unit.kana)]
+      return revealed || kanaOnly ? [el('span', '', unit.kana)] : []
+    }),
   )
 
   const parts: HTMLElement[] = []
-  let cursorPlaced = false
+  let caretPlaced = false
   typer.progress().forEach(([typed, rest], i) => {
-    if (gaps.has(i)) parts.push(el('span', 'gap', ' '))
+    if (gaps.has(i) && (revealed || typed)) parts.push(el('span', 'gap', ' '))
     if (typed) parts.push(el('span', 'typed', typed))
-    if (!rest) return
-    if (!cursorPlaced) {
+    if (!rest || caretPlaced) {
+      if (rest && revealed) parts.push(el('span', '', rest))
+      return
+    }
+    caretPlaced = true
+    if (revealed) {
       parts.push(el('span', 'cursor', rest[0]))
       if (rest.length > 1) parts.push(el('span', '', rest.slice(1)))
-      cursorPlaced = true
     } else {
-      parts.push(el('span', '', rest))
+      parts.push(el('span', 'caret'))
     }
   })
   romajiEl.replaceChildren(...parts)
+  romajiEl.classList.toggle('revealed', revealed)
+}
+
+/** 卡片下方显示刚打完的词的答案 */
+function renderPrevious(entry: Entry, known: boolean) {
+  const word = el('span', 'word')
+  word.lang = 'ja'
+  word.append(el('b', '', entry.headword))
+  if (entry.headword !== entry.reading) word.append(el('span', 'kana', entry.reading))
+  previousEl.replaceChildren(
+    el('span', known ? 'mark ok' : 'mark no', known ? '✓' : '✗'),
+    word,
+    el('span', 'roma', entry.romaji),
+  )
 }
 
 let missTimer = 0
@@ -246,6 +263,16 @@ function flashMiss() {
   missTimer = window.setTimeout(() => card.classList.remove('miss'), 220)
 }
 
+function reveal() {
+  if (!run || screen !== 'play') return
+  run.revealed[run.session.index] = true
+  if (!run.startedAt) run.startedAt = performance.now()
+  revealButton.hidden = true
+  renderTyping()
+  renderLive()
+  focusKeys()
+}
+
 function handleChar(ch: string) {
   if (!run || screen !== 'play') return
   const k = ch.toLowerCase()
@@ -253,44 +280,21 @@ function handleChar(ch: string) {
   if (!run.startedAt) run.startedAt = performance.now()
   warnEl.hidden = true
 
-  // 上个词词尾的 ん 只打了一个 n：先扣住紧接着的 n，看下一键再决定它是不是多余的
-  if (run.strayN) {
-    run.strayN = false
-    if (k === 'n') {
-      run.heldN = true
-      return
-    }
-  }
-  if (run.heldN) {
-    run.heldN = false
-    if (k !== 'n' && run.typer.key('n') !== 'miss') run.correct += 1
-  }
-
-  const outcome = run.typer.key(k)
-  if (outcome === 'ignored') return
-  if (outcome === 'miss') {
-    run.misses += 1
-    run.wordMisses[run.index] += 1
-    flashMiss()
+  const { session } = run
+  const before = session.index
+  const events = session.key(k)
+  if (events.includes('miss')) flashMiss()
+  if (session.index === before) {
+    if (events.length) renderTyping()
     return
   }
-  run.correct += 1
-  if (outcome === 'done') nextWord()
-  else renderTyping()
-}
-
-function nextWord() {
-  if (!run) return
-  run.strayN = run.typer.endsWithSingleN()
-  run.index += 1
-  if (run.index >= run.words.length) {
-    finish()
-    return
+  const last = session.index - 1
+  renderPrevious(run.words[last], isKnown(run, last))
+  if (session.finished) finish()
+  else {
+    renderWord()
+    renderLive()
   }
-  const entry = run.words[run.index]
-  run.typer = new Typer(buildWord(entry.reading, entry.romaji))
-  renderWord()
-  renderLive()
 }
 
 // 桌面端走 keydown；手机软键盘的 keydown 常常是 Unidentified，改从 input 事件取字符
@@ -311,6 +315,7 @@ keysInput.addEventListener('compositionstart', () => {
   warnEl.hidden = false
 })
 card.addEventListener('click', () => focusKeys())
+revealButton.addEventListener('click', reveal)
 $('quit').addEventListener('click', () => leavePlay())
 
 function leavePlay() {
@@ -340,57 +345,62 @@ function following(lv: Level, stage: number): [Level, number] | null {
 
 function finish() {
   if (!run) return
+  const r = run
   clearInterval(ticker)
-  run.endedAt = performance.now()
+  r.endedAt = performance.now()
   fillEl.style.width = '100%'
   keysInput.blur()
 
-  const accuracy = accuracyOf(run)
-  const kpm = Math.round(kpmOf(run))
-  const stars = starsFor(accuracy, kpm)
+  const total = r.words.length
+  const known = r.words.filter((_, i) => isKnown(r, i)).length
+  const stars = starsFor(known, total)
   if (stars > 0) {
-    record(progress, run.level, run.stage, { stars, accuracy, kpm })
+    record(progress, r.level, r.stage, { stars, known, total })
     storage.set(PROGRESS_KEY, JSON.stringify(progress))
   }
-  last = { level: run.level, stage: run.stage, passed: stars > 0 }
+  last = { level: r.level, stage: r.stage, passed: stars > 0 }
 
   resultStars.textContent = starText(stars)
   resultStars.classList.toggle('none', stars === 0)
-  resultTitle.textContent = `${run.level} 第 ${run.stage + 1} 关 ${stars > 0 ? '通过' : '未通过'}`
+  resultTitle.textContent = `${r.level} 第 ${r.stage + 1} 关 ${stars > 0 ? '通过' : '未通过'}`
 
-  const seconds = Math.round(elapsedMinutes(run) * 60)
+  const seconds = Math.round(elapsedMinutes(r) * 60)
   numbersEl.replaceChildren(
     ...[
-      ['准确率', `${(accuracy * 100).toFixed(1)}%`],
-      ['速度', `${kpm} 键/分`],
+      ['会', `${known} / ${total}`],
+      ['看答案', String(r.revealed.filter(Boolean).length)],
+      ['准确率', `${(accuracyOf(r) * 100).toFixed(1)}%`],
       ['用时', `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`],
-      ['错键', String(run.misses)],
     ].map(([label, value]) => {
       const box = el('div')
       box.append(el('dt', '', label), el('dd', '', value))
       return box
     }),
   )
-  rulesEl.textContent = STAR_RULES.map(
-    (r) => `${'★'.repeat(r.stars)} 准确率 ${r.accuracy * 100}%` + (r.kpm ? ` 且 ${r.kpm} 键/分` : ''),
-  ).join(' · ')
+  rulesEl.textContent =
+    `★★★ 全会 · ★★ 不会 1 个 · ★ 不会 ${MAX_UNKNOWN} 个 · 打错过或看过答案的词算不会`
 
-  const target = following(run.level, run.stage)
+  const target = following(r.level, r.stage)
   nextButton.hidden = !(stars > 0 && target)
-  if (target) nextButton.firstChild!.textContent = target[0] === run.level ? '下一关 ' : `${target[0]} 第 1 关 `
+  if (target) nextButton.firstChild!.textContent = target[0] === r.level ? '下一关 ' : `${target[0]} 第 1 关 `
 
-  const missed = run.words
-    .map((entry, i) => ({ entry, count: run!.wordMisses[i] }))
-    .filter((m) => m.count > 0)
-    .sort((a, b) => b.count - a.count)
+  const missed = r.words
+    .map((entry, i) => ({ entry, count: r.session.wordMisses[i], revealed: r.revealed[i] }))
+    .filter((m) => m.revealed || m.count > 0)
+    .sort((a, b) => Number(b.revealed) - Number(a.revealed) || b.count - a.count)
   missedEl.replaceChildren(
-    ...missed.map(({ entry, count }) => {
+    ...missed.map(({ entry, count, revealed }) => {
       const li = el('li')
       const word = el('span', 'word')
       word.lang = 'ja'
       word.append(el('b', '', entry.headword))
       if (entry.headword !== entry.reading) word.append(el('span', 'kana', entry.reading))
-      li.append(word, el('span', 'roma', entry.romaji), el('span', 'zh', entry.meaning), el('span', 'misses', `错 ${count}`))
+      li.append(
+        word,
+        el('span', 'roma', entry.romaji),
+        el('span', 'zh', entry.meaning),
+        el('span', 'misses', revealed ? '看答案' : `错 ${count}`),
+      )
       return li
     }),
   )
@@ -423,6 +433,11 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       leavePlay()
+      return
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      reveal()
       return
     }
     if (e.isComposing || e.key === 'Process') {

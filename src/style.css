@@ -266,6 +266,7 @@ button:focus-visible {
 }
 
 .reading {
+  min-height: 1.5em;
   font-size: 22px;
   color: var(--muted);
   overflow-wrap: anywhere;
@@ -288,6 +289,7 @@ button:focus-visible {
 }
 
 .romaji {
+  min-height: 1.4em;
   margin-top: 8px;
   font-family: var(--mono);
   font-size: 26px;
@@ -308,6 +310,26 @@ button:focus-visible {
 .card.miss .romaji .cursor {
   color: var(--red);
   border-bottom-color: var(--red);
+}
+
+.romaji .caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+  border-bottom: 2px solid var(--blue);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    border-bottom-color: transparent;
+  }
+}
+
+.card.miss .romaji .caret {
+  border-bottom-color: var(--red);
+  animation: none;
 }
 
 .romaji .gap {
@@ -333,11 +355,46 @@ button:focus-visible {
   text-align: center;
 }
 
-.upnext {
+.below {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.previous {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  color: var(--faint);
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
   font-size: 15px;
-  text-align: center;
+}
+
+.previous .word b {
+  margin-right: 8px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.previous .roma {
+  font-family: var(--mono);
+}
+
+.previous .mark.ok {
+  color: var(--green);
+}
+
+.previous .mark.no {
+  color: var(--red);
+}
+
+.below .ghost {
+  flex: none;
+  margin-left: auto;
 }
 
 /* ---- 结算 ---- */

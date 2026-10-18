@@ -163,9 +163,16 @@ export function buildWord(reading: string, romaji: string): Word {
   return { units, gaps }
 }
 
-export type KeyResult = 'ok' | 'miss' | 'done' | 'ignored'
+/** 只有假名、没有审核过 romaji 的读音（多读音词的其他读法）：只用于判定，不用于显示 */
+export function wordOf(reading: string): Word {
+  return { units: buildUnits(reading), gaps: new Set() }
+}
+
+export type KeyResult = 'ok' | 'miss' | 'done'
 
 interface State {
+  /** 第几种读法 */
+  word: number
   /** 当前 unit */
   index: number
   /** 当前 unit 已打的部分 */
@@ -176,52 +183,75 @@ interface State {
 
 /**
  * 逐键判定。同一串按键可能有多种切分（onna = ん:n + な:na，也可以是 ん:nn 之后再打 na），
- * 所以同时跟踪所有可能的状态，任意一个能接受这个键就算对。打错的键不会被记录。
+ * 一个词也可能有多种读法（日本 にほん / にっぽん），所以同时跟踪所有可能的状态，
+ * 任意一个能接受这个键就算对。打错的键不会被记录。
  */
 export class Typer {
-  readonly word: Word
-  keys = ''
-  private states: State[] = [{ index: 0, buffer: '', typed: [] }]
+  readonly words: Word[]
+  private states: State[]
 
-  constructor(word: Word) {
-    this.word = word
+  /** words[0] 是主读音，显示和看答案都用它 */
+  constructor(words: Word[], states?: State[]) {
+    this.words = words
+    this.states = states ?? words.map((_, word) => ({ word, index: 0, buffer: '', typed: [] }))
   }
+
+  clone() {
+    return new Typer(this.words, this.states)
+  }
+
+  private isEnd = (s: State) => s.index >= this.words[s.word].units.length
 
   get done() {
-    return this.states.some((s) => s.index >= this.word.units.length)
+    return this.states.some(this.isEnd)
   }
 
-  key(k: string): KeyResult {
-    if (this.done) return 'ignored'
-    const { units } = this.word
+  /** 还有没打完的读法（じゃ 打完了，じゃあ 还能继续） */
+  get live() {
+    return this.states.some((s) => !this.isEnd(s))
+  }
+
+  private step(k: string): State[] {
     const next: State[] = []
     const seen = new Set<string>()
     const add = (s: State) => {
-      const id = `${s.index}:${s.buffer}`
+      const id = `${s.word}:${s.index}:${s.buffer}`
       if (seen.has(id)) return
       seen.add(id)
       next.push(s)
     }
     for (const s of this.states) {
-      if (s.index >= units.length) continue
+      if (this.isEnd(s)) continue
       const buffer = s.buffer + k
-      const alts = units[s.index].alts
+      const alts = this.words[s.word].units[s.index].alts
       if (!alts.some((a) => a.startsWith(buffer))) continue
       if (alts.some((a) => a !== buffer && a.startsWith(buffer))) add({ ...s, buffer })
-      if (alts.includes(buffer)) add({ index: s.index + 1, buffer: '', typed: [...s.typed, buffer] })
+      if (alts.includes(buffer)) add({ ...s, index: s.index + 1, buffer: '', typed: [...s.typed, buffer] })
     }
+    return next
+  }
+
+  accepts(k: string) {
+    return this.step(k).length > 0
+  }
+
+  /** 在还没打完的读法上继续打；词已经完成后也能用（Session 判断多打的键） */
+  key(k: string): KeyResult {
+    const next = this.step(k)
     if (next.length === 0) return 'miss'
     this.states = next
-    this.keys += k
     return this.done ? 'done' : 'ok'
   }
 
-  /** 剩余部分最短的那条切分，用来画提示 */
+  /** 优先主读音；同一读法里取剩余最短的那条切分 */
   private best(): { state: State; current: string } {
-    const { units } = this.word
+    const finished = this.states.find(this.isEnd)
+    if (finished) return { state: finished, current: '' }
+    const word = Math.min(...this.states.map((s) => s.word))
     let best: { state: State; current: string; left: number } | null = null
     for (const state of this.states) {
-      if (state.index >= units.length) return { state, current: '' }
+      if (state.word !== word) continue
+      const { units } = this.words[word]
       const unit = units[state.index]
       const current = unit.alts.find((a) => a.startsWith(state.buffer)) ?? unit.alts[0]
       const left =
@@ -232,24 +262,101 @@ export class Typer {
     return best!
   }
 
+  /** 当前最可能在打的那个读法 */
+  get word(): Word {
+    return this.words[this.best().state.word]
+  }
+
   /** 已完成的 unit 数（读音着色用） */
   get index() {
     return this.best().state.index
   }
 
-  /** 提示用：每个 unit 的 [已打, 未打] */
+  /** 每个 unit 的 [已打, 未打] */
   progress(): [string, string][] {
     const { state, current } = this.best()
-    return this.word.units.map((unit, i): [string, string] => {
+    return this.words[state.word].units.map((unit, i): [string, string] => {
       if (i < state.index) return [state.typed[i], '']
       if (i === state.index) return [state.buffer, current.slice(state.buffer.length)]
       return ['', unit.alts[0]]
     })
   }
+}
 
-  /** 这个词是不是以只打了一个 n 的 ん 结束 */
-  endsWithSingleN() {
-    const end = this.states.find((s) => s.index >= this.word.units.length)
-    return end?.typed.at(-1) === 'n'
+/**
+ * 一关的连续输入。词一完成就切到下一个词，但上一个词可能还能继续打：
+ * 词尾 ん 打了一个 n 之后习惯性再打 n，或者 何 打到 nan 已经算 なん 完成、其实想打 nani。
+ * 这种多出来的键：下一个词接不住就吞掉；两边都接得住就先扣住，看再下一个键归谁。
+ */
+export class Session {
+  readonly queue: Word[][]
+  index = 0
+  typer: Typer
+  correct = 0
+  misses = 0
+  wordMisses: number[]
+  private prev: Typer | null = null
+  private held: string | null = null
+
+  constructor(queue: Word[][]) {
+    this.queue = queue
+    this.typer = new Typer(queue[0])
+    this.wordMisses = queue.map(() => 0)
+  }
+
+  get finished() {
+    return this.index >= this.queue.length
+  }
+
+  /** 返回这个键实际生效的结果（被吞掉或扣住时为空） */
+  key(k: string): KeyResult[] {
+    if (this.finished) return []
+    const events: KeyResult[] = []
+
+    if (this.held !== null) {
+      const held = this.held
+      this.held = null
+      const trial = this.typer.clone()
+      if (trial.key(held) !== 'miss' && (trial.done || trial.accepts(k))) {
+        this.apply(held, events)
+      } else if (!this.typer.accepts(k)) {
+        this.apply(held, events)
+      }
+      // 否则扣住的键是上一个词多打的，丢掉
+      if (!this.finished) this.apply(k, events)
+      return events
+    }
+
+    if (this.prev) {
+      const prev = this.prev
+      this.prev = null
+      if (prev.accepts(k)) {
+        if (!this.typer.accepts(k)) {
+          prev.key(k)
+          this.prev = prev.live ? prev : null
+        } else {
+          this.held = k
+        }
+        return events
+      }
+    }
+
+    this.apply(k, events)
+    return events
+  }
+
+  private apply(k: string, events: KeyResult[]) {
+    const result = this.typer.key(k)
+    events.push(result)
+    if (result === 'miss') {
+      this.misses += 1
+      this.wordMisses[this.index] += 1
+      return
+    }
+    this.correct += 1
+    if (result !== 'done') return
+    this.prev = this.typer.live ? this.typer : null
+    this.index += 1
+    if (!this.finished) this.typer = new Typer(this.queue[this.index])
   }
 }

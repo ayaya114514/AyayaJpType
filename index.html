@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="日语单词打字闯关：看 N5 / N4 / N3 单词，打罗马音过关" />
+    <meta name="description" content="日语单词盲打闯关：看 N5 / N4 / N3 单词，凭记忆打出罗马音" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AyayaJpType</title>
   </head>
@@ -15,7 +15,7 @@
           <img src="/favicon.svg" alt="" width="40" height="40" />
           <h1>AyayaJpType</h1>
         </header>
-        <p class="lead">看日语单词打罗马音，每关 20 个词，准确率 90% 过关</p>
+        <p class="lead">看单词盲打罗马音，测你会不会读，每关 20 个词，不会的不超过 2 个就过关</p>
         <div class="levels" id="levels" role="tablist" aria-label="级别"></div>
         <ol class="stages" id="stages" aria-label="关卡"></ol>
       </section>
@@ -46,7 +46,10 @@
           />
         </div>
         <p class="warn" id="warn" hidden>检测到日文输入法，请切换到英文输入再打</p>
-        <p class="upnext" id="upnext" lang="ja"></p>
+        <div class="below">
+          <p class="previous" id="previous"></p>
+          <button type="button" class="ghost" id="reveal">不会 <kbd>Tab</kbd></button>
+        </div>
       </section>
 
       <section id="result" hidden>
