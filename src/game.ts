@@ -16,14 +16,14 @@ export interface Entry {
 
 export interface Score {
   stars: number
-  /** 不看答案、一键没错打完的词数 */
+  /** 不看答案打完的词数 */
   known: number
   total: number
 }
 
 export const STAGE_SIZE = 20
 
-// 打错过或看过答案的词不算会：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
+// 看过答案的词算不会（中途打错不算）：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
 export const MAX_UNKNOWN = 2
 
 export function starsFor(known: number, total: number): number {
@@ -173,7 +173,7 @@ export function parseMistakes(raw: string | null): Mistakes {
   return book
 }
 
-/** 一个词打完后更新错题集：不会就收进来（连续答对清零），会了就给已在集里的词记一次 */
+/** 一个词打完后更新错题集：看过答案就收进来（连续答对清零），会了就给已在集里的词记一次 */
 export function markMistake(book: Mistakes, id: string, known: boolean, now = Date.now()) {
   const old = book[id]
   if (!known) {

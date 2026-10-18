@@ -272,7 +272,8 @@ function focusKeys() {
 const elapsedMinutes = (r: Run) => ((r.endedAt || performance.now()) - r.startedAt) / 60000
 const accuracyOf = ({ session }: Run) =>
   session.correct + session.misses ? session.correct / (session.correct + session.misses) : 1
-const isKnown = (r: Run, i: number) => !r.revealed[i] && r.session.wordMisses[i] === 0
+// 打出来就算会（中途打错的键只影响准确率），只有看过答案才算不会
+const isKnown = (r: Run, i: number) => !r.revealed[i]
 
 function renderLive() {
   if (!run) return
@@ -481,7 +482,7 @@ function finish() {
   const left = review ? filtered(mode.review).length : 0
   rulesEl.textContent = review
     ? `连续答对 ${CLEAR_STREAK} 次的词会移出错题集 · 还剩 ${left} 个`
-    : `★★★ 全会 · ★★ 不会 1 个 · ★ 不会 ${MAX_UNKNOWN} 个 · 不会的词已收进错题集`
+    : `★★★ 全会 · ★★ 不会 1 个 · ★ 不会 ${MAX_UNKNOWN} 个 · 看答案的词算不会，已收进错题集`
 
   if (review) {
     nextButton.hidden = left === 0
@@ -493,18 +494,15 @@ function finish() {
   }
   backLabel.textContent = review ? '错题集' : '选关'
 
-  const missed = r.words
-    .map((entry, i) => ({ entry, count: r.session.wordMisses[i], revealed: r.revealed[i] }))
-    .filter((m) => m.revealed || m.count > 0)
-    .sort((a, b) => Number(b.revealed) - Number(a.revealed) || b.count - a.count)
+  const missed = r.words.filter((_, i) => r.revealed[i])
   missedEl.replaceChildren(
-    ...missed.map(({ entry, count, revealed }) => {
+    ...missed.map((entry) => {
       const li = el('li')
       li.append(
         wordCell(entry),
         el('span', 'roma', entry.romaji),
         el('span', 'zh', entry.meaning),
-        el('span', 'misses', revealed ? '看答案' : `错 ${count}`),
+        el('span', 'misses', '看答案'),
       )
       return li
     }),
