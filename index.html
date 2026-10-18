@@ -27,7 +27,7 @@
         </div>
         <div class="filters" id="book-filters" role="tablist" aria-label="级别"></div>
         <button type="button" class="start" id="book-start"></button>
-        <p class="empty" id="book-empty" hidden>还没有错题。闯关时打错或看过答案的词会收进来，连续答对 2 次后移出。</p>
+        <p class="empty" id="book-empty" hidden>还没有错题。按 Tab 看过答案的词会收进来，之后连续答对 2 次就移出。</p>
         <ul class="missed" id="book-list" aria-label="错题"></ul>
       </section>
 
@@ -75,7 +75,7 @@
           <button type="button" class="primary" id="next"><span id="next-label">下一关</span> <kbd>Enter</kbd></button>
           <button type="button" class="ghost" id="back"><span id="back-label">选关</span> <kbd>Esc</kbd></button>
         </div>
-        <ul class="missed" id="missed" aria-label="打错的词"></ul>
+        <ul class="missed" id="missed" aria-label="看过答案的词"></ul>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
