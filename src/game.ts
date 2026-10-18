@@ -9,27 +9,24 @@ export interface Entry {
   reading: string
   romaji: string
   meaning: string
+  /** 其他读法（只有假名），盲打时也算对 */
+  variants: string[]
 }
 
 export interface Score {
   stars: number
-  accuracy: number
-  kpm: number
+  /** 不看答案、一键没错打完的词数 */
+  known: number
+  total: number
 }
 
 export const STAGE_SIZE = 20
 
-// 过关和星级门槛：准确率是 正确键 / (正确键 + 错键)，速度是每分钟正确键数
-export const STAR_RULES = [
-  { stars: 1, accuracy: 0.9, kpm: 0 },
-  { stars: 2, accuracy: 0.95, kpm: 120 },
-  { stars: 3, accuracy: 0.98, kpm: 200 },
-]
+// 打错过或看过答案的词不算会：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
+export const MAX_UNKNOWN = 2
 
-export function starsFor(accuracy: number, kpm: number): number {
-  let stars = 0
-  for (const rule of STAR_RULES) if (accuracy >= rule.accuracy && kpm >= rule.kpm) stars = rule.stars
-  return stars
+export function starsFor(known: number, total: number): number {
+  return Math.max(0, 3 - (total - known))
 }
 
 // 固定种子的洗牌：词表是按五十音排的，打乱后每关混着来，但每次打开分关都一样
@@ -58,7 +55,14 @@ export function shuffle<T>(list: T[]): T[] {
 export const STAGES: Record<Level, Entry[][]> = Object.fromEntries(
   LEVELS.map((level) => {
     const entries = words[level].map(
-      ([id, headword, reading, romaji, meaning]): Entry => ({ id, headword, reading, romaji, meaning }),
+      ([id, headword, reading, romaji, meaning, variants]): Entry => ({
+        id: id as string,
+        headword: headword as string,
+        reading: reading as string,
+        romaji: romaji as string,
+        meaning: meaning as string,
+        variants: variants as string[],
+      }),
     )
     const shuffled = seededShuffle(entries, `ayaya-jp-type:${level}`)
     const count = Math.ceil(shuffled.length / STAGE_SIZE)
@@ -95,7 +99,7 @@ export function parseProgress(raw: string | null): Progress {
 /** 只保留更好的成绩 */
 export function record(progress: Progress, level: Level, stage: number, score: Score) {
   const old = progress[level][stage]
-  if (!old || score.stars > old.stars || (score.stars === old.stars && score.kpm > old.kpm)) {
+  if (!old || score.stars > old.stars) {
     progress[level][stage] = score
   }
 }

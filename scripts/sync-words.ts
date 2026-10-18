@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildWord } from '../src/kana.ts'
+import { buildWord, wordOf } from '../src/kana.ts'
 
 interface Entry {
   id: string
@@ -11,6 +11,7 @@ interface Entry {
   reading: string
   romaji: string
   meaning_zh: string
+  reading_variants: string[]
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -21,7 +22,8 @@ const files = {
   N3: 'ayaya-n3-codex-vocab.json',
 }
 
-const out: Record<string, [string, string, string, string, string][]> = {}
+// [id, 词形, 主读音, romaji, 中文, 其他读音]
+const out: Record<string, [string, string, string, string, string, string[]][]> = {}
 const failures: string[] = []
 const skipped: string[] = []
 
@@ -34,13 +36,16 @@ for (const [level, file] of Object.entries(files)) {
       skipped.push(`${e.id} ${e.headword}`)
       continue
     }
+    // 盲打时其他读法也算对（日本 にほん / にっぽん）；「べんきょう (する)」这类带注释的不是另一种读法
+    const variants = [...new Set(e.reading_variants)].filter((r) => r !== e.reading && /^[ぁ-ゖァ-ヺー]+$/.test(r))
     try {
       buildWord(e.reading, e.romaji)
+      variants.forEach(wordOf)
     } catch (err) {
       failures.push(`${e.id} ${e.headword}：${(err as Error).message}`)
       continue
     }
-    out[level].push([e.id, e.headword, e.reading, e.romaji, e.meaning_zh])
+    out[level].push([e.id, e.headword, e.reading, e.romaji, e.meaning_zh, variants])
   }
 }
 
@@ -54,5 +59,5 @@ console.log(
   Object.entries(out)
     .map(([level, words]) => `${level} ${words.length}`)
     .join(' · '),
-  `（跳过词缀 ${skipped.length} 个）`,
+  `（跳过词缀 ${skipped.length} 个，多读音 ${Object.values(out).flat().filter((w) => w[5].length).length} 个）`,
 )
