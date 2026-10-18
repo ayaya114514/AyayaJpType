@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "sync:words": "node scripts/sync-words.ts"
+    "sync:words": "node scripts/sync-words.ts",
+    "sync:sentences": "node scripts/sync-sentences.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

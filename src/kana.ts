@@ -134,7 +134,10 @@ export function buildWord(reading: string, romaji: string): Word {
   const chosen: string[] = []
 
   const options = (unit: Unit) => {
-    const particle = PARTICLE[toHiragana(unit.kana)]
+    const kana = toHiragana(unit.kana)
+    // 句子里 ん 后面隔着词界接元音时 romaji 写成 hon o，这时只打一个 n 也对
+    if (kana === 'ん') return [...unit.alts, 'n']
+    const particle = PARTICLE[kana]
     return particle ? [...unit.alts, particle] : unit.alts
   }
   const search = (i: number, pos: number): boolean => {
