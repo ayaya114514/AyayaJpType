@@ -2,15 +2,20 @@ import './style.css'
 import { buildWord, Session, wordOf } from './kana'
 import {
   answersFor,
+  CLEAR_STREAK,
   isPassed,
   isUnlocked,
   LEVELS,
+  markMistake,
   MAX_UNKNOWN,
+  mistakeEntries,
+  parseMistakes,
   parseProgress,
   passedCount,
   record,
   shuffle,
   STAGES,
+  STAGE_SIZE,
   starsFor,
   type Answer,
   type Entry,
@@ -20,6 +25,7 @@ import {
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
 const home = $<HTMLElement>('home')
+const bookSection = $<HTMLElement>('book')
 const play = $<HTMLElement>('play')
 const result = $<HTMLElement>('result')
 const levelsEl = $<HTMLDivElement>('levels')
@@ -40,6 +46,7 @@ const revealButton = $<HTMLButtonElement>('reveal')
 // v2：改成盲打后星级按“会的词数”算，和之前看提示打的成绩不可比
 const PROGRESS_KEY = 'ayaya-jp-type:progress:v2'
 const LEVEL_KEY = 'ayaya-jp-type:level'
+const MISTAKES_KEY = 'ayaya-jp-type:mistakes'
 
 // localStorage 在隐私模式等情况下可能抛错，读写都兜住
 const storage = {
@@ -60,14 +67,16 @@ const storage = {
 }
 
 const progress = parseProgress(storage.get(PROGRESS_KEY))
+const mistakes = parseMistakes(storage.get(MISTAKES_KEY))
 let level: Level = LEVELS.find((l) => l === storage.get(LEVEL_KEY)) ?? 'N5'
 
-type Screen = 'home' | 'play' | 'result'
+type Screen = 'home' | 'book' | 'play' | 'result'
 let screen: Screen = 'home'
 
 function show(next: Screen) {
   screen = next
   home.hidden = next !== 'home'
+  bookSection.hidden = next !== 'book'
   play.hidden = next !== 'play'
   result.hidden = next !== 'result'
   window.scrollTo(0, 0)
@@ -106,6 +115,11 @@ function renderHome() {
       return tab
     }),
   )
+  const bookTab = el('button', 'level book-tab')
+  bookTab.type = 'button'
+  bookTab.append(el('span', 'name', '错题'), el('span', 'count', String(mistakeEntries(mistakes).length)))
+  bookTab.addEventListener('click', () => showBook())
+  levelsEl.append(bookTab)
 
   const current = currentStage(level)
   stagesEl.replaceChildren(
@@ -135,11 +149,79 @@ function showHome() {
   stagesEl.querySelector<HTMLButtonElement>('.current')?.focus({ preventScroll: true })
 }
 
+// ---- 错题集 ----
+
+type BookFilter = Level | 'all'
+let bookFilter: BookFilter = 'all'
+
+const bookFiltersEl = $<HTMLDivElement>('book-filters')
+const bookStart = $<HTMLButtonElement>('book-start')
+const bookEmpty = $<HTMLParagraphElement>('book-empty')
+const bookList = $<HTMLUListElement>('book-list')
+
+const filtered = (filter: BookFilter) => mistakeEntries(mistakes, filter === 'all' ? undefined : filter)
+
+function wordCell(entry: Entry) {
+  const word = el('span', 'word')
+  word.lang = 'ja'
+  word.append(el('b', '', entry.headword))
+  if (entry.headword !== entry.reading) word.append(el('span', 'kana', entry.reading))
+  return word
+}
+
+function renderBook() {
+  bookFiltersEl.replaceChildren(
+    ...(['all', ...LEVELS] as BookFilter[]).map((f) => {
+      const tab = el('button', 'filter')
+      tab.type = 'button'
+      tab.setAttribute('role', 'tab')
+      tab.setAttribute('aria-selected', String(f === bookFilter))
+      tab.append(el('span', 'name', f === 'all' ? '全部' : f), el('span', 'count', String(filtered(f).length)))
+      tab.addEventListener('click', () => {
+        bookFilter = f
+        renderBook()
+      })
+      return tab
+    }),
+  )
+  const entries = filtered(bookFilter)
+  bookStart.textContent = `开始练习 ${Math.min(entries.length, STAGE_SIZE)} 个`
+  bookStart.hidden = entries.length === 0
+  bookEmpty.hidden = entries.length > 0
+  bookList.replaceChildren(
+    ...entries.map((entry) => {
+      const m = mistakes[entry.id]
+      const li = el('li')
+      const status = `${bookFilter === 'all' ? `${entry.level} · ` : ''}错 ${m.wrong}` +
+        (m.streak ? ` · 对 ${m.streak}/${CLEAR_STREAK}` : '')
+      li.append(wordCell(entry), el('span', 'roma', entry.romaji), el('span', 'zh', entry.meaning), el('span', 'misses', status))
+      return li
+    }),
+  )
+}
+
+function showBook() {
+  show('book')
+  renderBook()
+  if (!bookStart.hidden) bookStart.focus({ preventScroll: true })
+}
+
+/** 最近不会的 20 个，打乱顺序练 */
+function startReview(filter: BookFilter) {
+  const words = filtered(filter).slice(0, STAGE_SIZE)
+  if (words.length) startRun(shuffle(words), { review: filter })
+}
+
+bookStart.addEventListener('click', () => startReview(bookFilter))
+$('book-back').addEventListener('click', showHome)
+
 // ---- 打字 ----
 
+/** 闯关，或者错题练习（不计星、不影响解锁） */
+type Mode = { level: Level; stage: number } | { review: BookFilter }
+
 interface Run {
-  level: Level
-  stage: number
+  mode: Mode
   words: Entry[]
   /** 每个词所有算对的答案，和 session 里的读法一一对应 */
   answers: Answer[][]
@@ -154,11 +236,13 @@ let run: Run | null = null
 let ticker = 0
 
 function startStage(lv: Level, stage: number) {
-  const words = shuffle(STAGES[lv][stage])
+  startRun(shuffle(STAGES[lv][stage]), { level: lv, stage })
+}
+
+function startRun(words: Entry[], mode: Mode) {
   const answers = words.map(answersFor)
   run = {
-    level: lv,
-    stage,
+    mode,
     words,
     answers,
     session: new Session(
@@ -168,7 +252,7 @@ function startStage(lv: Level, stage: number) {
     startedAt: 0,
     endedAt: 0,
   }
-  whereEl.textContent = `${lv} · 第 ${stage + 1} 关`
+  whereEl.textContent = 'review' in mode ? '错题练习' : `${mode.level} · 第 ${mode.stage + 1} 关`
   warnEl.hidden = true
   previousEl.replaceChildren()
   show('play')
@@ -294,7 +378,10 @@ function handleChar(ch: string) {
     return
   }
   const last = session.index - 1
-  renderPrevious(run.answers[last][session.answered[last]] ?? run.answers[last][0], isKnown(run, last))
+  const known = isKnown(run, last)
+  markMistake(mistakes, run.words[last].id, known)
+  storage.set(MISTAKES_KEY, JSON.stringify(mistakes))
+  renderPrevious(run.answers[last][session.answered[last]] ?? run.answers[last][0], known)
   if (session.finished) finish()
   else {
     renderWord()
@@ -324,10 +411,12 @@ revealButton.addEventListener('click', reveal)
 $('quit').addEventListener('click', () => leavePlay())
 
 function leavePlay() {
+  const review = run && 'review' in run.mode
   clearInterval(ticker)
   run = null
   keysInput.blur()
-  showHome()
+  if (review) showBook()
+  else showHome()
 }
 
 // ---- 结算 ----
@@ -338,8 +427,10 @@ const numbersEl = $<HTMLDListElement>('numbers')
 const rulesEl = $<HTMLParagraphElement>('rules')
 const missedEl = $<HTMLUListElement>('missed')
 const nextButton = $<HTMLButtonElement>('next')
+const nextLabel = $<HTMLSpanElement>('next-label')
+const backLabel = $<HTMLSpanElement>('back-label')
 
-let last: { level: Level; stage: number; passed: boolean } | null = null
+let last: { mode: Mode; words: Entry[]; passed: boolean } | null = null
 
 /** 下一关；一个级别打完接下一个级别的第 1 关 */
 function following(lv: Level, stage: number): [Level, number] | null {
@@ -356,18 +447,23 @@ function finish() {
   fillEl.style.width = '100%'
   keysInput.blur()
 
+  const { mode } = r
   const total = r.words.length
   const known = r.words.filter((_, i) => isKnown(r, i)).length
   const stars = starsFor(known, total)
-  if (stars > 0) {
-    record(progress, r.level, r.stage, { stars, known, total })
+  const review = 'review' in mode
+  if (!review && stars > 0) {
+    record(progress, mode.level, mode.stage, { stars, known, total })
     storage.set(PROGRESS_KEY, JSON.stringify(progress))
   }
-  last = { level: r.level, stage: r.stage, passed: stars > 0 }
+  last = { mode, words: r.words, passed: stars > 0 }
 
   resultStars.textContent = starText(stars)
   resultStars.classList.toggle('none', stars === 0)
-  resultTitle.textContent = `${r.level} 第 ${r.stage + 1} 关 ${stars > 0 ? '通过' : '未通过'}`
+  resultStars.hidden = review
+  resultTitle.textContent = review
+    ? '错题练习完成'
+    : `${mode.level} 第 ${mode.stage + 1} 关 ${stars > 0 ? '通过' : '未通过'}`
 
   const seconds = Math.round(elapsedMinutes(r) * 60)
   numbersEl.replaceChildren(
@@ -382,12 +478,20 @@ function finish() {
       return box
     }),
   )
-  rulesEl.textContent =
-    `★★★ 全会 · ★★ 不会 1 个 · ★ 不会 ${MAX_UNKNOWN} 个 · 打错过或看过答案的词算不会`
+  const left = review ? filtered(mode.review).length : 0
+  rulesEl.textContent = review
+    ? `连续答对 ${CLEAR_STREAK} 次的词会移出错题集 · 还剩 ${left} 个`
+    : `★★★ 全会 · ★★ 不会 1 个 · ★ 不会 ${MAX_UNKNOWN} 个 · 不会的词已收进错题集`
 
-  const target = following(r.level, r.stage)
-  nextButton.hidden = !(stars > 0 && target)
-  if (target) nextButton.firstChild!.textContent = target[0] === r.level ? '下一关 ' : `${target[0]} 第 1 关 `
+  if (review) {
+    nextButton.hidden = left === 0
+    nextLabel.textContent = '再练一组'
+  } else {
+    const target = following(mode.level, mode.stage)
+    nextButton.hidden = !(stars > 0 && target)
+    if (target) nextLabel.textContent = target[0] === mode.level ? '下一关' : `${target[0]} 第 1 关`
+  }
+  backLabel.textContent = review ? '错题集' : '选关'
 
   const missed = r.words
     .map((entry, i) => ({ entry, count: r.session.wordMisses[i], revealed: r.revealed[i] }))
@@ -396,12 +500,8 @@ function finish() {
   missedEl.replaceChildren(
     ...missed.map(({ entry, count, revealed }) => {
       const li = el('li')
-      const word = el('span', 'word')
-      word.lang = 'ja'
-      word.append(el('b', '', entry.headword))
-      if (entry.headword !== entry.reading) word.append(el('span', 'kana', entry.reading))
       li.append(
-        word,
+        wordCell(entry),
         el('span', 'roma', entry.romaji),
         el('span', 'zh', entry.meaning),
         el('span', 'misses', revealed ? '看答案' : `错 ${count}`),
@@ -417,8 +517,13 @@ function finish() {
 }
 
 function goNext() {
-  if (!last?.passed) return
-  const target = following(last.level, last.stage)
+  if (!last) return
+  if ('review' in last.mode) {
+    startReview(last.mode.review)
+    return
+  }
+  if (!last.passed) return
+  const target = following(last.mode.level, last.mode.stage)
   if (!target) return
   if (target[0] !== level) {
     level = target[0]
@@ -426,11 +531,21 @@ function goNext() {
   }
   startStage(...target)
 }
-const retry = () => last && startStage(last.level, last.stage)
+
+function retry() {
+  if (!last) return
+  if ('review' in last.mode) startRun(shuffle(last.words), last.mode)
+  else startStage(last.mode.level, last.mode.stage)
+}
+
+function backFromResult() {
+  if (last && 'review' in last.mode) showBook()
+  else showHome()
+}
 
 $('retry').addEventListener('click', retry)
 nextButton.addEventListener('click', goNext)
-$('back').addEventListener('click', showHome)
+$('back').addEventListener('click', backFromResult)
 
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -457,9 +572,10 @@ document.addEventListener('keydown', (e) => {
   }
   if (screen === 'result') {
     // Enter 交给获得焦点的按钮，避免一次回车触发两次
-    if (e.key === 'Escape') showHome()
+    if (e.key === 'Escape') backFromResult()
     else if (e.key === 'r' || e.key === 'R') retry()
   }
+  if (screen === 'book' && e.key === 'Escape') showHome()
 })
 
 showHome()

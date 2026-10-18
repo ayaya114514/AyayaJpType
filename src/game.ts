@@ -5,6 +5,7 @@ export const LEVELS: Level[] = ['N5', 'N4', 'N3']
 
 export interface Entry {
   id: string
+  level: Level
   headword: string
   reading: string
   romaji: string
@@ -57,6 +58,7 @@ export const STAGES: Record<Level, Entry[][]> = Object.fromEntries(
     const entries = words[level].map(
       ([id, headword, reading, romaji, meaning, variants]): Entry => ({
         id: id as string,
+        level,
         headword: headword as string,
         reading: reading as string,
         romaji: romaji as string,
@@ -84,9 +86,11 @@ export interface Answer {
 }
 
 const BY_MEANING = new Map<string, Entry[]>()
+const BY_ID = new Map<string, Entry>()
 for (const level of LEVELS) {
   for (const entry of STAGES[level].flat()) {
     BY_MEANING.set(entry.meaning, [...(BY_MEANING.get(entry.meaning) ?? []), entry])
+    BY_ID.set(entry.id, entry)
   }
 }
 
@@ -137,3 +141,54 @@ export const isUnlocked = (progress: Progress, level: Level, stage: number) =>
 
 export const passedCount = (progress: Progress, level: Level) =>
   STAGES[level].filter((_, i) => isPassed(progress, level, i)).length
+
+// ---- 错题集 ----
+
+export interface Mistake {
+  /** 累计不会的次数 */
+  wrong: number
+  /** 之后连续答对的次数 */
+  streak: number
+  /** 最近一次不会的时间 */
+  at: number
+}
+
+export type Mistakes = Record<string, Mistake>
+
+/** 连续答对这么多次才移出错题集，避免蒙对一次就清掉 */
+export const CLEAR_STREAK = 2
+
+export function parseMistakes(raw: string | null): Mistakes {
+  const book: Mistakes = {}
+  try {
+    const data = JSON.parse(raw ?? 'null') ?? {}
+    for (const [id, m] of Object.entries(data)) {
+      const { wrong, streak, at } = (m ?? {}) as Mistake
+      // 词表更新后已经不存在的词条丢掉
+      if (BY_ID.has(id) && [wrong, streak, at].every(Number.isFinite)) book[id] = { wrong, streak, at }
+    }
+  } catch {
+    // 数据坏了就当没有
+  }
+  return book
+}
+
+/** 一个词打完后更新错题集：不会就收进来（连续答对清零），会了就给已在集里的词记一次 */
+export function markMistake(book: Mistakes, id: string, known: boolean, now = Date.now()) {
+  const old = book[id]
+  if (!known) {
+    book[id] = { wrong: (old?.wrong ?? 0) + 1, streak: 0, at: now }
+    return
+  }
+  if (!old) return
+  old.streak += 1
+  if (old.streak >= CLEAR_STREAK) delete book[id]
+}
+
+/** 错题，最近不会的在前 */
+export function mistakeEntries(book: Mistakes, level?: Level): Entry[] {
+  return Object.entries(book)
+    .sort(([, a], [, b]) => b.at - a.at)
+    .map(([id]) => BY_ID.get(id)!)
+    .filter((entry) => !level || entry.level === level)
+}
