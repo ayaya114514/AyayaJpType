@@ -3,12 +3,18 @@ import words from './words.json'
 export type Level = 'N5' | 'N4' | 'N3'
 export const LEVELS: Level[] = ['N5', 'N4', 'N3']
 
+/** 单词，或者句子 */
+export type Kind = 'word' | 'sentence'
+
 export interface Entry {
   id: string
   level: Level
+  /** 单词的词形；句子的日文原句 */
   headword: string
+  /** 读音假名（句子去掉了标点） */
   reading: string
   romaji: string
+  /** 中文释义或翻译，也就是题目 */
   meaning: string
   /** 其他读法（只有假名），盲打时也算对 */
   variants: string[]
@@ -16,14 +22,12 @@ export interface Entry {
 
 export interface Score {
   stars: number
-  /** 不看答案打完的词数 */
+  /** 不看答案打完的个数 */
   known: number
   total: number
 }
 
-export const STAGE_SIZE = 20
-
-// 看过答案的词算不会（中途打错不算）：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
+// 看过答案的算不会（中途打错不算）：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
 export const MAX_UNKNOWN = 2
 
 export function starsFor(known: number, total: number): number {
@@ -52,46 +56,98 @@ export function shuffle<T>(list: T[]): T[] {
   return seededShuffle(list, String(Math.random()))
 }
 
-/** 每个级别切成若干关，每关 STAGE_SIZE 个左右（余数均摊，不留一个很小的尾关） */
-export const STAGES: Record<Level, Entry[][]> = Object.fromEntries(
-  LEVELS.map((level) => {
-    const entries = words[level].map(
-      ([id, headword, reading, romaji, meaning, variants]): Entry => ({
-        id: id as string,
-        level,
-        headword: headword as string,
-        reading: reading as string,
-        romaji: romaji as string,
-        meaning: meaning as string,
-        variants: variants as string[],
-      }),
-    )
-    const shuffled = seededShuffle(entries, `ayaya-jp-type:${level}`)
-    const count = Math.ceil(shuffled.length / STAGE_SIZE)
-    const stages: Entry[][] = []
+/** 一套题：按级别分好关，带按 id / 中文查找的索引 */
+export interface Deck {
+  kind: Kind
+  stageSize: number
+  stages: Record<Level, Entry[][]>
+  byId: Map<string, Entry>
+  byMeaning: Map<string, Entry[]>
+}
+
+/** 每个级别切成若干关，每关 stageSize 个左右（余数均摊，不留一个很小的尾关） */
+function makeDeck(kind: Kind, entries: Record<Level, Entry[]>, stageSize: number): Deck {
+  const deck: Deck = {
+    kind,
+    stageSize,
+    stages: { N5: [], N4: [], N3: [] },
+    byId: new Map(),
+    byMeaning: new Map(),
+  }
+  for (const level of LEVELS) {
+    const shuffled = seededShuffle(entries[level], `ayaya-jp-type:${kind === 'word' ? '' : `${kind}:`}${level}`)
+    const count = Math.ceil(shuffled.length / stageSize)
     for (let i = 0; i < count; i++) {
-      stages.push(
+      deck.stages[level].push(
         shuffled.slice(Math.round((i * shuffled.length) / count), Math.round(((i + 1) * shuffled.length) / count)),
       )
     }
-    return [level, stages]
-  }),
-) as Record<Level, Entry[][]>
+    for (const entry of entries[level]) {
+      deck.byId.set(entry.id, entry)
+      deck.byMeaning.set(entry.meaning, [...(deck.byMeaning.get(entry.meaning) ?? []), entry])
+    }
+  }
+  return deck
+}
 
-/** 一种算对的答案：主读音（romaji 审核过）、其他读法（只有假名），或中文释义完全相同的另一个词 */
+export const WORDS = makeDeck(
+  'word',
+  Object.fromEntries(
+    LEVELS.map((level) => [
+      level,
+      words[level].map(
+        ([id, headword, reading, romaji, meaning, variants]): Entry => ({
+          id: id as string,
+          level,
+          headword: headword as string,
+          reading: reading as string,
+          romaji: romaji as string,
+          meaning: meaning as string,
+          variants: variants as string[],
+        }),
+      ),
+    ]),
+  ) as Record<Level, Entry[]>,
+  20,
+)
+
+export type SentenceData = Record<Level, [string, string, string, string][]>
+
+/** 句子以原句为 id（同一句只收一次） */
+export function makeSentenceDeck(data: SentenceData): Deck {
+  return makeDeck(
+    'sentence',
+    Object.fromEntries(
+      LEVELS.map((level) => [
+        level,
+        data[level].map(([ja, reading, romaji, zh]): Entry => ({
+          id: ja,
+          level,
+          headword: ja,
+          reading,
+          romaji,
+          meaning: zh,
+          variants: [],
+        })),
+      ]),
+    ) as Record<Level, Entry[]>,
+    10,
+  )
+}
+
+let sentences: Promise<Deck> | null = null
+
+/** 句子数据比较大，切到句子模式时才加载 */
+export function loadSentences(): Promise<Deck> {
+  sentences ??= import('./sentences.json').then((mod) => makeSentenceDeck(mod.default as SentenceData))
+  return sentences
+}
+
+/** 一种算对的答案：主读音（romaji 审核过）、其他读法（只有假名），或中文完全相同的另一条 */
 export interface Answer {
   entry: Entry
   reading: string
   romaji: string | null
-}
-
-const BY_MEANING = new Map<string, Entry[]>()
-const BY_ID = new Map<string, Entry>()
-for (const level of LEVELS) {
-  for (const entry of STAGES[level].flat()) {
-    BY_MEANING.set(entry.meaning, [...(BY_MEANING.get(entry.meaning) ?? []), entry])
-    BY_ID.set(entry.id, entry)
-  }
 }
 
 const answersOf = (entry: Entry): Answer[] => [
@@ -99,9 +155,9 @@ const answersOf = (entry: Entry): Answer[] => [
   ...entry.variants.map((reading) => ({ entry, reading, romaji: null })),
 ]
 
-/** 题目只显示中文，所以释义完全一样的词（幸福：幸福 / 幸せ）都算对；第一个是题目本身的主读音 */
-export function answersFor(entry: Entry): Answer[] {
-  const others = (BY_MEANING.get(entry.meaning) ?? []).filter((e) => e !== entry)
+/** 题目只显示中文，所以中文完全一样的（幸福：幸福 / 幸せ）都算对；第一个是题目本身的主读音 */
+export function answersFor(deck: Deck, entry: Entry): Answer[] {
+  const others = (deck.byMeaning.get(entry.meaning) ?? []).filter((e) => e !== entry)
   return [...answersOf(entry), ...others.flatMap(answersOf)]
 }
 
@@ -139,8 +195,8 @@ export const isPassed = (progress: Progress, level: Level, stage: number) =>
 export const isUnlocked = (progress: Progress, level: Level, stage: number) =>
   stage === 0 || isPassed(progress, level, stage - 1)
 
-export const passedCount = (progress: Progress, level: Level) =>
-  STAGES[level].filter((_, i) => isPassed(progress, level, i)).length
+export const passedCount = (deck: Deck, progress: Progress, level: Level) =>
+  deck.stages[level].filter((_, i) => isPassed(progress, level, i)).length
 
 // ---- 错题集 ----
 
@@ -158,14 +214,14 @@ export type Mistakes = Record<string, Mistake>
 /** 连续答对这么多次才移出错题集，避免蒙对一次就清掉 */
 export const CLEAR_STREAK = 2
 
-export function parseMistakes(raw: string | null): Mistakes {
+export function parseMistakes(deck: Deck, raw: string | null): Mistakes {
   const book: Mistakes = {}
   try {
     const data = JSON.parse(raw ?? 'null') ?? {}
     for (const [id, m] of Object.entries(data)) {
       const { wrong, streak, at } = (m ?? {}) as Mistake
-      // 词表更新后已经不存在的词条丢掉
-      if (BY_ID.has(id) && [wrong, streak, at].every(Number.isFinite)) book[id] = { wrong, streak, at }
+      // 词表更新后已经不存在的条目丢掉
+      if (deck.byId.has(id) && [wrong, streak, at].every(Number.isFinite)) book[id] = { wrong, streak, at }
     }
   } catch {
     // 数据坏了就当没有
@@ -173,7 +229,7 @@ export function parseMistakes(raw: string | null): Mistakes {
   return book
 }
 
-/** 一个词打完后更新错题集：看过答案就收进来（连续答对清零），会了就给已在集里的词记一次 */
+/** 打完一条后更新错题集：看过答案就收进来（连续答对清零），会了就给已在集里的记一次 */
 export function markMistake(book: Mistakes, id: string, known: boolean, now = Date.now()) {
   const old = book[id]
   if (!known) {
@@ -186,9 +242,9 @@ export function markMistake(book: Mistakes, id: string, known: boolean, now = Da
 }
 
 /** 错题，最近不会的在前 */
-export function mistakeEntries(book: Mistakes, level?: Level): Entry[] {
+export function mistakeEntries(deck: Deck, book: Mistakes, level?: Level): Entry[] {
   return Object.entries(book)
     .sort(([, a], [, b]) => b.at - a.at)
-    .map(([id]) => BY_ID.get(id)!)
+    .flatMap(([id]) => deck.byId.get(id) ?? [])
     .filter((entry) => !level || entry.level === level)
 }

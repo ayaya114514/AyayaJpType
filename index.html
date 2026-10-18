@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
-    <meta name="description" content="日语单词盲打闯关：看中文，凭记忆打出 N5 / N4 / N3 单词的罗马音" />
+    <meta name="description" content="日语盲打闯关：看中文，凭记忆打出 N5 / N4 / N3 单词和例句的罗马音" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AyayaJpType</title>
   </head>
@@ -15,19 +15,20 @@
           <img src="/favicon.svg" alt="" width="40" height="40" />
           <h1>AyayaJpType</h1>
         </header>
-        <p class="lead">看中文盲打日语单词的罗马音，每关 20 个词，不会的不超过 2 个就过关</p>
+        <div class="kinds" id="kinds" role="tablist" aria-label="模式"></div>
         <div class="levels" id="levels" role="tablist" aria-label="级别"></div>
+        <p class="loading" id="loading" hidden></p>
         <ol class="stages" id="stages" aria-label="关卡"></ol>
       </section>
 
       <section id="book" hidden>
         <div class="playbar">
           <button type="button" class="ghost" id="book-back" aria-label="返回选关">←</button>
-          <span class="where">错题集</span>
+          <span class="where" id="book-title">错题集</span>
         </div>
         <div class="filters" id="book-filters" role="tablist" aria-label="级别"></div>
         <button type="button" class="start" id="book-start"></button>
-        <p class="empty" id="book-empty" hidden>还没有错题。按 Tab 看过答案的词会收进来，之后连续答对 2 次就移出。</p>
+        <p class="empty" id="book-empty" hidden>还没有错题。按 Tab 看过答案的会收进来，之后连续答对 2 次就移出。</p>
         <ul class="missed" id="book-list" aria-label="错题"></ul>
       </section>
 
@@ -75,7 +76,7 @@
           <button type="button" class="primary" id="next"><span id="next-label">下一关</span> <kbd>Enter</kbd></button>
           <button type="button" class="ghost" id="back"><span id="back-label">选关</span> <kbd>Esc</kbd></button>
         </div>
-        <ul class="missed" id="missed" aria-label="看过答案的词"></ul>
+        <ul class="missed" id="missed" aria-label="看过答案的"></ul>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
