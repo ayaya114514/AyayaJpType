@@ -295,6 +295,8 @@ export class Session {
   correct = 0
   misses = 0
   wordMisses: number[]
+  /** 每个词最后是按第几种答案打完的 */
+  answered: number[] = []
   private prev: Typer | null = null
   private held: string | null = null
 
@@ -355,6 +357,7 @@ export class Session {
     }
     this.correct += 1
     if (result !== 'done') return
+    this.answered[this.index] = this.typer.words.indexOf(this.typer.word)
     this.prev = this.typer.live ? this.typer : null
     this.index += 1
     if (!this.finished) this.typer = new Typer(this.queue[this.index])

@@ -259,7 +259,7 @@ button:focus-visible {
 }
 
 .headword {
-  font-size: 44px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -272,20 +272,15 @@ button:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.reading.solo {
-  font-size: 44px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--ink);
-}
-
 .reading .done {
   color: var(--green);
 }
 
 .meaning {
-  color: var(--muted);
-  font-size: 17px;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .romaji {
@@ -551,9 +546,12 @@ kbd {
     padding-top: 28px;
   }
 
-  .headword,
-  .reading.solo {
-    font-size: 36px;
+  .meaning {
+    font-size: 24px;
+  }
+
+  .headword {
+    font-size: 26px;
   }
 
   .romaji {

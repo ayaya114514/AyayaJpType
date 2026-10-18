@@ -1,6 +1,7 @@
 import './style.css'
 import { buildWord, Session, wordOf } from './kana'
 import {
+  answersFor,
   isPassed,
   isUnlocked,
   LEVELS,
@@ -11,6 +12,7 @@ import {
   shuffle,
   STAGES,
   starsFor,
+  type Answer,
   type Entry,
   type Level,
 } from './game'
@@ -139,6 +141,8 @@ interface Run {
   level: Level
   stage: number
   words: Entry[]
+  /** 每个词所有算对的答案，和 session 里的读法一一对应 */
+  answers: Answer[][]
   session: Session
   /** 看过答案的词 */
   revealed: boolean[]
@@ -151,11 +155,15 @@ let ticker = 0
 
 function startStage(lv: Level, stage: number) {
   const words = shuffle(STAGES[lv][stage])
+  const answers = words.map(answersFor)
   run = {
     level: lv,
     stage,
     words,
-    session: new Session(words.map((e) => [buildWord(e.reading, e.romaji), ...e.variants.map(wordOf)])),
+    answers,
+    session: new Session(
+      answers.map((list) => list.map((a) => (a.romaji ? buildWord(a.reading, a.romaji) : wordOf(a.reading)))),
+    ),
     revealed: words.map(() => false),
     startedAt: 0,
     endedAt: 0,
@@ -194,10 +202,9 @@ function renderWord() {
   if (!run) return
   const { session, words } = run
   const entry = words[session.index]
-  const kanaOnly = entry.headword === entry.reading
-  headwordEl.textContent = kanaOnly ? '' : entry.headword
-  headwordEl.hidden = kanaOnly
-  readingEl.classList.toggle('solo', kanaOnly)
+  // 题目只有中文；词形在看答案后才出现
+  headwordEl.textContent = entry.headword
+  headwordEl.hidden = true
   meaningEl.textContent = entry.meaning
   revealButton.hidden = false
   fillEl.style.width = `${(session.index / words.length) * 100}%`
@@ -209,14 +216,15 @@ function renderTyping() {
   const { session } = run
   const { typer } = session
   const revealed = run.revealed[session.index]
-  const kanaOnly = run.words[session.index].headword === run.words[session.index].reading
-  // 盲打：读音只显示打对的部分；假名词的词形本身就是读音，看答案后也整个显示
+  const entry = run.words[session.index]
+  headwordEl.hidden = !revealed || entry.headword === entry.reading
+  // 盲打：读音只显示打对的部分，看答案后整个显示
   const { units, gaps } = typer.word
   const doneUnits = typer.index
   readingEl.replaceChildren(
     ...units.flatMap((unit, i) => {
       if (i < doneUnits) return [el('span', 'done', unit.kana)]
-      return revealed || kanaOnly ? [el('span', '', unit.kana)] : []
+      return revealed ? [el('span', '', unit.kana)] : []
     }),
   )
 
@@ -241,17 +249,14 @@ function renderTyping() {
   romajiEl.classList.toggle('revealed', revealed)
 }
 
-/** 卡片下方显示刚打完的词的答案 */
-function renderPrevious(entry: Entry, known: boolean) {
+/** 卡片下方显示刚打完的词：按你实际打的那个答案显示（其他读法没有审核过的 romaji，就不显示 romaji） */
+function renderPrevious(answer: Answer, known: boolean) {
   const word = el('span', 'word')
   word.lang = 'ja'
-  word.append(el('b', '', entry.headword))
-  if (entry.headword !== entry.reading) word.append(el('span', 'kana', entry.reading))
-  previousEl.replaceChildren(
-    el('span', known ? 'mark ok' : 'mark no', known ? '✓' : '✗'),
-    word,
-    el('span', 'roma', entry.romaji),
-  )
+  word.append(el('b', '', answer.entry.headword))
+  if (answer.entry.headword !== answer.reading) word.append(el('span', 'kana', answer.reading))
+  previousEl.replaceChildren(el('span', known ? 'mark ok' : 'mark no', known ? '✓' : '✗'), word)
+  if (answer.romaji) previousEl.append(el('span', 'roma', answer.romaji))
 }
 
 let missTimer = 0
@@ -289,7 +294,7 @@ function handleChar(ch: string) {
     return
   }
   const last = session.index - 1
-  renderPrevious(run.words[last], isKnown(run, last))
+  renderPrevious(run.answers[last][session.answered[last]] ?? run.answers[last][0], isKnown(run, last))
   if (session.finished) finish()
   else {
     renderWord()

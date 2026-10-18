@@ -76,6 +76,31 @@ export const STAGES: Record<Level, Entry[][]> = Object.fromEntries(
   }),
 ) as Record<Level, Entry[][]>
 
+/** 一种算对的答案：主读音（romaji 审核过）、其他读法（只有假名），或中文释义完全相同的另一个词 */
+export interface Answer {
+  entry: Entry
+  reading: string
+  romaji: string | null
+}
+
+const BY_MEANING = new Map<string, Entry[]>()
+for (const level of LEVELS) {
+  for (const entry of STAGES[level].flat()) {
+    BY_MEANING.set(entry.meaning, [...(BY_MEANING.get(entry.meaning) ?? []), entry])
+  }
+}
+
+const answersOf = (entry: Entry): Answer[] => [
+  { entry, reading: entry.reading, romaji: entry.romaji },
+  ...entry.variants.map((reading) => ({ entry, reading, romaji: null })),
+]
+
+/** 题目只显示中文，所以释义完全一样的词（幸福：幸福 / 幸せ）都算对；第一个是题目本身的主读音 */
+export function answersFor(entry: Entry): Answer[] {
+  const others = (BY_MEANING.get(entry.meaning) ?? []).filter((e) => e !== entry)
+  return [...answersOf(entry), ...others.flatMap(answersOf)]
+}
+
 export type Progress = Record<Level, Record<number, Score>>
 
 export const emptyProgress = (): Progress => ({ N5: {}, N4: {}, N3: {} })
