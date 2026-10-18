@@ -20,6 +20,17 @@
         <ol class="stages" id="stages" aria-label="关卡"></ol>
       </section>
 
+      <section id="book" hidden>
+        <div class="playbar">
+          <button type="button" class="ghost" id="book-back" aria-label="返回选关">←</button>
+          <span class="where">错题集</span>
+        </div>
+        <div class="filters" id="book-filters" role="tablist" aria-label="级别"></div>
+        <button type="button" class="start" id="book-start"></button>
+        <p class="empty" id="book-empty" hidden>还没有错题。闯关时打错或看过答案的词会收进来，连续答对 2 次后移出。</p>
+        <ul class="missed" id="book-list" aria-label="错题"></ul>
+      </section>
+
       <section id="play" hidden>
         <div class="playbar">
           <button type="button" class="ghost" id="quit" aria-label="返回选关">←</button>
@@ -61,8 +72,8 @@
         <p class="rules" id="rules"></p>
         <div class="actions">
           <button type="button" id="retry">重来 <kbd>R</kbd></button>
-          <button type="button" class="primary" id="next">下一关 <kbd>Enter</kbd></button>
-          <button type="button" class="ghost" id="back">选关 <kbd>Esc</kbd></button>
+          <button type="button" class="primary" id="next"><span id="next-label">下一关</span> <kbd>Enter</kbd></button>
+          <button type="button" class="ghost" id="back"><span id="back-label">选关</span> <kbd>Esc</kbd></button>
         </div>
         <ul class="missed" id="missed" aria-label="打错的词"></ul>
       </section>

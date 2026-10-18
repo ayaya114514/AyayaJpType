@@ -89,7 +89,7 @@ section {
 
 .levels {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-top: 8px;
 }
@@ -122,6 +122,53 @@ section {
 }
 
 .level[aria-selected='true'] .count {
+  color: var(--muted);
+}
+
+.book-tab .count {
+  color: var(--red);
+}
+
+/* ---- 错题集 ---- */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 15px;
+}
+
+.filter .count {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter[aria-selected='true'] {
+  border-color: var(--blue);
+  background: var(--panel-strong);
+}
+
+.start {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border: 1px solid var(--blue);
+  border-radius: 10px;
+  background: #2a3d55;
+  font-size: 15px;
+}
+
+.empty {
+  margin: 0;
   color: var(--muted);
 }
 
@@ -544,6 +591,13 @@ kbd {
 @media (max-width: 560px) {
   .app {
     padding-top: 28px;
+  }
+
+  .level {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 4px;
   }
 
   .meaning {
