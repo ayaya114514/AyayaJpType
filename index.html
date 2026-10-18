@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="日语单词打字闯关：看 N5 / N4 / N3 单词，打罗马音过关" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>AyayaJpType</title>
+  </head>
+  <body>
+    <main class="app">
+      <section id="home">
+        <header class="brand">
+          <img src="/favicon.svg" alt="" width="40" height="40" />
+          <h1>AyayaJpType</h1>
+        </header>
+        <p class="lead">看日语单词打罗马音，每关 20 个词，准确率 90% 过关</p>
+        <div class="levels" id="levels" role="tablist" aria-label="级别"></div>
+        <ol class="stages" id="stages" aria-label="关卡"></ol>
+      </section>
+
+      <section id="play" hidden>
+        <div class="playbar">
+          <button type="button" class="ghost" id="quit" aria-label="返回选关">←</button>
+          <span class="where" id="where"></span>
+          <span class="stat" id="live"></span>
+        </div>
+        <div class="track"><div class="fill" id="fill"></div></div>
+
+        <div class="card" id="card">
+          <div class="headword" id="headword" lang="ja"></div>
+          <div class="reading" id="reading" lang="ja"></div>
+          <div class="meaning" id="meaning"></div>
+          <div class="romaji" id="romaji"></div>
+          <label class="sr-only" for="keys">罗马音输入</label>
+          <input
+            id="keys"
+            class="keys"
+            type="text"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            enterkeyhint="next"
+          />
+        </div>
+        <p class="warn" id="warn" hidden>检测到日文输入法，请切换到英文输入再打</p>
+        <p class="upnext" id="upnext" lang="ja"></p>
+      </section>
+
+      <section id="result" hidden>
+        <div class="verdict">
+          <div class="stars big" id="result-stars"></div>
+          <h2 id="result-title"></h2>
+        </div>
+        <dl class="numbers" id="numbers"></dl>
+        <p class="rules" id="rules"></p>
+        <div class="actions">
+          <button type="button" id="retry">重来 <kbd>R</kbd></button>
+          <button type="button" class="primary" id="next">下一关 <kbd>Enter</kbd></button>
+          <button type="button" class="ghost" id="back">选关 <kbd>Esc</kbd></button>
+        </div>
+        <ul class="missed" id="missed" aria-label="打错的词"></ul>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
