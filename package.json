@@ -1,0 +1,24 @@
+{
+  "name": "ayaya-jp-type",
+  "version": "0.1.0",
+  "private": true,
+  "description": "日语单词打字闯关：看词打罗马音",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "sync:words": "node scripts/sync-words.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}

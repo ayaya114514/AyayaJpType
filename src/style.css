@@ -1,0 +1,528 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d0f12;
+  --panel: #1a1d22;
+  --panel-strong: #23262c;
+  --line: #313640;
+  --line-strong: #4a515d;
+  --ink: #f2f4f7;
+  --muted: #b3b9c2;
+  --faint: #858d99;
+  --blue: #82aee1;
+  --green: #5cc49a;
+  --red: #ef7f7f;
+  --gold: #f0c35a;
+  --jp-font: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC',
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+[lang='ja'] {
+  font-family: var(--jp-font);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.app {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 48px 16px 40px;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- 选关 ---- */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand img {
+  display: block;
+  flex: none;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.levels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.level {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.level .name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.level .count {
+  color: var(--faint);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.level[aria-selected='true'] {
+  border-color: var(--blue);
+  background: var(--panel-strong);
+}
+
+.level[aria-selected='true'] .count {
+  color: var(--muted);
+}
+
+.stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.stage .num {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage .stars {
+  color: var(--gold);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.stage:not(:disabled):hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+}
+
+.stage.current {
+  border-color: var(--blue);
+}
+
+.stage:disabled {
+  cursor: default;
+  background: transparent;
+  color: var(--faint);
+}
+
+.stage:disabled .stars {
+  color: var(--line-strong);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* ---- 打字 ---- */
+
+.playbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.where {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.stat {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ghost {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.ghost:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-strong);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  width: 0;
+  background: var(--blue);
+  transition: width 0.15s ease-out;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 20px 32px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  text-align: center;
+  cursor: text;
+}
+
+.card.miss {
+  animation: shake 0.2s;
+  border-color: var(--red);
+}
+
+@keyframes shake {
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.headword {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.reading {
+  font-size: 22px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.reading.solo {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.reading .done {
+  color: var(--green);
+}
+
+.meaning {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.romaji {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
+.romaji .typed {
+  color: var(--ink);
+}
+
+.romaji .cursor {
+  color: var(--ink);
+  border-bottom: 2px solid var(--blue);
+}
+
+.card.miss .romaji .cursor {
+  color: var(--red);
+  border-bottom-color: var(--red);
+}
+
+.romaji .gap {
+  white-space: pre;
+}
+
+/* 真正接收按键的输入框：看不见但能拿到焦点，手机上点卡片会弹出键盘 */
+.keys {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  font-size: 16px;
+}
+
+.warn {
+  margin: 0;
+  color: var(--red);
+  text-align: center;
+}
+
+.upnext {
+  margin: 0;
+  color: var(--faint);
+  font-size: 15px;
+  text-align: center;
+}
+
+/* ---- 结算 ---- */
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.stars.big {
+  color: var(--gold);
+  font-size: 40px;
+  letter-spacing: 6px;
+}
+
+.stars.big.none {
+  color: var(--line-strong);
+}
+
+.verdict h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.numbers {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.numbers div {
+  padding: 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.numbers dt {
+  color: var(--faint);
+  font-size: 13px;
+}
+
+.numbers dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rules {
+  margin: 0;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actions button {
+  padding: 10px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--panel-strong);
+  font-size: 15px;
+}
+
+.actions button.primary {
+  border-color: var(--blue);
+  background: #2a3d55;
+}
+
+.actions button.ghost {
+  background: transparent;
+}
+
+kbd {
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+@media (hover: none) {
+  kbd {
+    display: none;
+  }
+}
+
+.missed {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.missed li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+.missed .word b {
+  font-size: 17px;
+  margin-right: 8px;
+}
+
+.missed .kana {
+  color: var(--muted);
+}
+
+.missed .roma {
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.missed .zh {
+  color: var(--muted);
+}
+
+.missed .misses {
+  color: var(--red);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding-top: 28px;
+  }
+
+  .headword,
+  .reading.solo {
+    font-size: 36px;
+  }
+
+  .romaji {
+    font-size: 22px;
+  }
+
+  .card {
+    padding: 28px 14px 24px;
+  }
+
+  .numbers {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .missed li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+  }
+
+  .missed .roma,
+  .missed .zh {
+    grid-column: 1;
+  }
+
+  .missed .misses {
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
