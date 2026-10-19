@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0a0e17" />
     <meta name="description" content="日语盲打闯关：看中文，凭记忆打出 N5 / N4 / N3 单词和例句的罗马音" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>AyayaJpType</title>
@@ -12,39 +13,77 @@
     <main class="app">
       <section id="home">
         <header class="brand">
-          <img src="/favicon.svg" alt="" width="40" height="40" />
-          <h1>AyayaJpType</h1>
+          <img src="/favicon.svg" alt="" width="44" height="44" />
+          <div>
+            <h1>AyayaJpType</h1>
+            <p>看中文，凭记忆打出日语</p>
+          </div>
         </header>
         <div class="kinds" id="kinds" role="tablist" aria-label="模式"></div>
-        <div class="levels" id="levels" role="tablist" aria-label="级别"></div>
+
+        <div class="board" id="board">
+          <div class="board-row">
+            <span class="board-label">次の列車</span>
+            <span id="board-type"></span>
+            <span class="dest" id="board-dest"></span>
+            <span class="board-meta" id="board-meta"></span>
+            <button type="button" class="primary board-go" id="board-go">乗車 <kbd>Enter</kbd></button>
+          </div>
+          <div class="ticker" aria-hidden="true">
+            <span id="ticker"></span>
+          </div>
+        </div>
+
+        <div class="lines" id="levels" role="tablist" aria-label="线路"></div>
         <p class="loading" id="loading" hidden></p>
-        <ol class="stages" id="stages" aria-label="关卡"></ol>
+        <div class="map" id="stages" role="list" aria-label="站点"></div>
       </section>
 
       <section id="book" hidden>
         <div class="playbar">
-          <button type="button" class="ghost" id="book-back" aria-label="返回选关">←</button>
-          <span class="where" id="book-title">错题集</span>
+          <button type="button" class="ghost" id="book-back" aria-label="返回路线图">←</button>
+          <span class="where"><span lang="ja">忘れ物センター</span> <span class="kind-note" id="book-kind"></span></span>
         </div>
+        <p class="note">看过答案的都送到这里。连续 2 次不看答案打出来，就能领回去。</p>
         <div class="filters" id="book-filters" role="tablist" aria-label="级别"></div>
-        <button type="button" class="start" id="book-start"></button>
-        <p class="empty" id="book-empty" hidden>还没有错题。按 Tab 看过答案的会收进来，之后连续答对 2 次就移出。</p>
+        <button type="button" class="primary start" id="book-start"></button>
+        <p class="empty" id="book-empty" hidden>这里还空着。按 Tab 看过答案的会送到这里。</p>
         <ul class="missed" id="book-list" aria-label="错题"></ul>
       </section>
 
       <section id="play" hidden>
         <div class="playbar">
-          <button type="button" class="ghost" id="quit" aria-label="返回选关">←</button>
+          <button type="button" class="ghost" id="quit" aria-label="返回路线图">←</button>
           <span class="where" id="where"></span>
           <span class="stat" id="live"></span>
         </div>
-        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="route" aria-hidden="true">
+          <div class="route-dots" id="route-dots"></div>
+          <span class="train" id="train">
+            <svg viewBox="0 0 30 16" width="30" height="16">
+              <path d="M3 2h17c4.5 0 8 3.6 8 8v1.5a1.5 1.5 0 0 1-1.5 1.5H3a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="currentColor" />
+              <rect x="4" y="4.5" width="4" height="3.6" rx="0.8" fill="#0a0e17" />
+              <rect x="10" y="4.5" width="4" height="3.6" rx="0.8" fill="#0a0e17" />
+              <rect x="16" y="4.5" width="4" height="3.6" rx="0.8" fill="#0a0e17" />
+              <path d="M22 4.5h1.2c1.8 0 3.2 1.4 3.6 3.6H22z" fill="#0a0e17" />
+              <circle cx="7" cy="14.4" r="1.6" fill="#aab4c5" />
+              <circle cx="22" cy="14.4" r="1.6" fill="#aab4c5" />
+            </svg>
+          </span>
+        </div>
 
-        <div class="card" id="card">
-          <div class="meaning" id="meaning"></div>
-          <div class="headword" id="headword" lang="ja"></div>
-          <div class="reading" id="reading" lang="ja"></div>
-          <div class="romaji" id="romaji"></div>
+        <div class="sign" id="card">
+          <span class="plate" id="plate"></span>
+          <div class="sign-body" id="sign-body">
+            <div class="meaning" id="meaning"></div>
+            <div class="headword" id="headword" lang="ja"></div>
+            <div class="reading" id="reading" lang="ja"></div>
+            <div class="romaji" id="romaji"></div>
+          </div>
+          <div class="band">
+            <p class="previous" id="previous"></p>
+            <span class="next-stop" id="next-stop" lang="ja"></span>
+          </div>
           <label class="sr-only" for="keys">罗马音输入</label>
           <input
             id="keys"
@@ -57,25 +96,40 @@
             enterkeyhint="next"
           />
         </div>
-        <p class="warn" id="warn" hidden>检测到日文输入法，请切换到英文输入再打</p>
+        <div class="platform" aria-hidden="true"></div>
         <div class="below">
-          <p class="previous" id="previous"></p>
+          <p class="warn" id="warn" hidden>检测到日文输入法，请切换到英文输入再打</p>
           <button type="button" class="ghost" id="reveal">不会 <kbd>Tab</kbd></button>
         </div>
       </section>
 
       <section id="result" hidden>
-        <div class="verdict">
-          <div class="stars big" id="result-stars"></div>
+        <div class="ticket" id="ticket">
+          <div class="ticket-head" lang="ja">
+            <span id="ticket-title"></span>
+            <span id="ticket-kind"></span>
+          </div>
+          <div class="ticket-route">
+            <b id="ticket-from"></b>
+            <span class="arrow" id="ticket-arrow">→</span>
+            <b id="ticket-to"></b>
+          </div>
           <h2 id="result-title"></h2>
+          <dl class="numbers" id="numbers"></dl>
+          <div class="ticket-foot">
+            <span id="ticket-date"></span>
+            <span lang="ja">下車前途無効 · AyayaJpType</span>
+          </div>
+          <span class="punch" aria-hidden="true"></span>
+          <span class="seal" id="seal" lang="ja"></span>
         </div>
-        <dl class="numbers" id="numbers"></dl>
         <p class="rules" id="rules"></p>
         <div class="actions">
           <button type="button" id="retry">重来 <kbd>R</kbd></button>
-          <button type="button" class="primary" id="next"><span id="next-label">下一关</span> <kbd>Enter</kbd></button>
-          <button type="button" class="ghost" id="back"><span id="back-label">选关</span> <kbd>Esc</kbd></button>
+          <button type="button" class="primary" id="next"><span id="next-label">下一站</span> <kbd>Enter</kbd></button>
+          <button type="button" class="ghost" id="back"><span id="back-label">路线图</span> <kbd>Esc</kbd></button>
         </div>
+        <h3 class="missed-title" id="missed-title"></h3>
         <ul class="missed" id="missed" aria-label="看过答案的"></ul>
       </section>
     </main>

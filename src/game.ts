@@ -21,18 +21,17 @@ export interface Entry {
 }
 
 export interface Score {
-  stars: number
   /** 不看答案打完的个数 */
   known: number
   total: number
 }
 
-// 看过答案的算不会（中途打错不算）：全会 ★★★，不会 1 个 ★★，不会 2 个 ★，再多就没过关
-export const MAX_UNKNOWN = 2
+// 看过答案的算错（中途打错的键只影响准确率）；一关对这么多个就解锁下一关
+export const PASS_KNOWN = 5
 
-export function starsFor(known: number, total: number): number {
-  return Math.max(0, 3 - (total - known))
-}
+export const errorsOf = (score: Score) => score.total - score.known
+
+export const passes = (score: Score) => score.known >= Math.min(PASS_KNOWN, score.total)
 
 // 固定种子的洗牌：词表是按五十音排的，打乱后每关混着来，但每次打开分关都一样
 function seededShuffle<T>(list: T[], seed: string): T[] {
@@ -171,8 +170,11 @@ export function parseProgress(raw: string | null): Progress {
     const data = JSON.parse(raw ?? 'null')
     for (const level of LEVELS) {
       for (const [key, score] of Object.entries(data?.[level] ?? {})) {
-        const s = score as Score
-        if (typeof s?.stars === 'number') progress[level][Number(key)] = s
+        // 旧存档多一个 stars 字段，只取 known / total
+        const { known, total } = (score ?? {}) as Score
+        if (Number.isInteger(known) && Number.isInteger(total) && known >= 0 && known <= total) {
+          progress[level][Number(key)] = { known, total }
+        }
       }
     }
   } catch {
@@ -181,16 +183,18 @@ export function parseProgress(raw: string | null): Progress {
   return progress
 }
 
-/** 只保留更好的成绩 */
+/** 只保留错得最少的那次（没过关的也记，路线图上显示错几个） */
 export function record(progress: Progress, level: Level, stage: number, score: Score) {
   const old = progress[level][stage]
-  if (!old || score.stars > old.stars) {
+  if (!old || errorsOf(score) < errorsOf(old)) {
     progress[level][stage] = score
   }
 }
 
-export const isPassed = (progress: Progress, level: Level, stage: number) =>
-  (progress[level][stage]?.stars ?? 0) > 0
+export const isPassed = (progress: Progress, level: Level, stage: number) => {
+  const score = progress[level][stage]
+  return Boolean(score && passes(score))
+}
 
 export const isUnlocked = (progress: Progress, level: Level, stage: number) =>
   stage === 0 || isPassed(progress, level, stage - 1)
