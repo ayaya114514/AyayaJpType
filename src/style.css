@@ -1,22 +1,43 @@
+/* 夜里的电车线：N5 / N4 / N3 是三条线，关卡是站，打字卡片是站名牌，结算是车票 */
+
 :root {
   color-scheme: dark;
-  --bg: #0d0f12;
-  --panel: #1a1d22;
-  --panel-strong: #23262c;
-  --line: #313640;
-  --line-strong: #4a515d;
-  --ink: #f2f4f7;
-  --muted: #b3b9c2;
-  --faint: #858d99;
-  --blue: #82aee1;
-  --green: #5cc49a;
-  --red: #ef7f7f;
-  --gold: #f0c35a;
+  --bg: #0a0e17;
+  --panel: #131a28;
+  --panel-strong: #1b2436;
+  --edge: #2a3449;
+  --edge-strong: #43506a;
+  --ink: #eef2f8;
+  --muted: #aeb8c9;
+  --faint: #7f8aa0;
+  --red: #ff6b6b;
+  --gold: #f5c542;
+  --led: #ffb547;
+  --rail-off: #364259;
+  /* 站名牌、车票、行李牌这些“实物”的纸色和墨色 */
+  --sign: #f6f3ea;
+  --sign-ink: #161a21;
+  --sign-faint: #9da3ad;
+  --line: #8ccf3f;
+  --line-ink: #3d8410;
+  --on-line: #13260a;
   --jp-font: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC',
     sans-serif;
+}
+
+[data-line='N4'] {
+  --line: #f59a3a;
+  --line-ink: #b85800;
+  --on-line: #2b1500;
+}
+
+[data-line='N3'] {
+  --line: #3cb7ee;
+  --line-ink: #0b74a8;
+  --on-line: #03202f;
 }
 
 * {
@@ -33,6 +54,9 @@ body {
 body {
   min-height: 100vh;
   min-height: 100dvh;
+  background:
+    radial-gradient(900px 420px at 50% -160px, #1c2a48 0%, transparent 70%),
+    var(--bg);
 }
 
 [hidden] {
@@ -49,10 +73,15 @@ button {
   cursor: pointer;
 }
 
+button:focus-visible {
+  outline: 2px solid var(--led);
+  outline-offset: 2px;
+}
+
 .app {
   width: min(760px, 100%);
   margin: 0 auto;
-  padding: 48px 16px 40px;
+  padding: 40px 16px 56px;
 }
 
 section {
@@ -61,7 +90,73 @@ section {
   gap: 16px;
 }
 
-/* ---- 选关 ---- */
+.primary {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--led);
+  color: #241500;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.primary:hover {
+  background: #ffc46b;
+}
+
+.primary kbd {
+  border-color: rgba(36, 21, 0, 0.35);
+  color: rgba(36, 21, 0, 0.7);
+}
+
+.ghost {
+  padding: 6px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.ghost:hover {
+  color: var(--ink);
+  border-color: var(--edge-strong);
+}
+
+kbd {
+  margin-left: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--edge-strong);
+  border-radius: 4px;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+@media (hover: none) {
+  kbd {
+    display: none;
+  }
+}
+
+/* 列车种别：各停绿、特急红，和日本站里的发车标一样 */
+.type {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #23934f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+.type.sentence {
+  background: #d93a3a;
+}
+
+/* ---- 路线图 ---- */
 
 .brand {
   display: flex;
@@ -77,37 +172,122 @@ section {
 .brand h1 {
   margin: 0;
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.01em;
+}
+
+.brand p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 15px;
 }
 
 .kinds {
   display: inline-flex;
   align-self: flex-start;
-  padding: 3px;
-  border: 1px solid var(--line);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--edge);
   border-radius: 10px;
   background: var(--panel);
 }
 
 .kind {
-  padding: 7px 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--muted);
+  color: var(--faint);
   font-size: 15px;
+}
+
+.kind .type {
+  opacity: 0.45;
 }
 
 .kind[aria-selected='true'] {
   background: var(--panel-strong);
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
 }
 
-.levels {
+.kind[aria-selected='true'] .type {
+  opacity: 1;
+}
+
+/* 发车标：黑底橙色 LED 字，下面一行滚动说明 */
+.board {
+  padding: 12px 14px 10px;
+  border: 1px solid #222a39;
+  border-radius: 10px;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1.3px) 0 0 / 4px 4px,
+    #06080c;
+  box-shadow: inset 0 0 0 3px #0d1118;
+  color: var(--led);
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.board-label {
+  color: #a77a35;
+  font-family: var(--jp-font);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.dest {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 10px rgba(255, 181, 71, 0.45);
+}
+
+.board-meta {
+  color: #e2a34b;
+  font-size: 15px;
+}
+
+.board-go {
+  margin-left: auto;
+}
+
+.ticker {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed #262e3e;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #e6a24a;
+  font-size: 14px;
+  -webkit-mask: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.ticker span {
+  display: inline-block;
+  animation: marquee 36s linear infinite;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* 线路选择：东京地铁那种圆环线路标 */
+.lines {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -116,142 +296,303 @@ section {
   color: var(--muted);
 }
 
-.level {
+.line-tab {
   display: flex;
-  align-items: baseline;
-  justify-content: center;
+  align-items: center;
   gap: 10px;
-  padding: 12px 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
   background: var(--panel);
+  text-align: left;
 }
 
-.level .name {
-  font-size: 18px;
-  font-weight: 700;
+.line-tab .symbol {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 5px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--sign-ink);
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.level .count {
-  color: var(--faint);
+.line-tab .info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.line-tab .count {
+  color: var(--muted);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.level[aria-selected='true'] {
-  border-color: var(--blue);
+.line-tab .bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rail-off);
+  overflow: hidden;
+}
+
+.line-tab .bar i {
+  display: block;
+  height: 100%;
+  background: var(--line);
+}
+
+.line-tab:hover {
+  border-color: var(--edge-strong);
+}
+
+.line-tab[aria-selected='true'] {
+  border-color: var(--line);
   background: var(--panel-strong);
+  box-shadow: 0 0 24px -10px var(--line);
 }
 
-.level[aria-selected='true'] .count {
+.line-tab[aria-selected='true'] .count {
+  color: var(--ink);
+}
+
+.book-tab .symbol {
+  border: 0;
+  border-radius: 8px;
+  background: #e8d6ad;
+  color: #5a4520;
+  font-family: var(--jp-font);
+  font-size: 18px;
+}
+
+.book-tab .name {
   color: var(--muted);
+  font-size: 13px;
 }
 
 .book-tab .count {
   color: var(--red);
+  font-size: 16px;
+  font-weight: 700;
 }
 
-/* ---- 错题集 ---- */
-
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* 蛇形路线：每站是轨道上的一个点；过了的站盖一个车站纪念章，里面写错几个 */
+.map {
+  --rail-y: 36px;
+  --row-h: 104px;
+  padding: 4px 0 8px;
 }
 
-.filter {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 7px 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel);
-  font-size: 15px;
-}
-
-.filter .count {
-  color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.filter[aria-selected='true'] {
-  border-color: var(--blue);
-  background: var(--panel-strong);
-}
-
-.start {
-  align-self: flex-start;
-  padding: 10px 20px;
-  border: 1px solid var(--blue);
-  border-radius: 10px;
-  background: #2a3d55;
-  font-size: 15px;
-}
-
-.empty {
-  margin: 0;
-  color: var(--muted);
-}
-
-.stages {
+.row {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  height: var(--row-h);
 }
 
-.stage {
-  width: 100%;
+.row.rtl {
+  direction: rtl;
+}
+
+.stop {
+  position: relative;
+  direction: ltr;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 10px 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
 }
 
-.stage .num {
-  font-size: 18px;
-  font-weight: 600;
+.stop::before,
+.stop::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--rail-y) - 3px);
+  /* 多 1px 盖住相邻两格之间的亚像素缝 */
+  width: calc(50% + 1px);
+  height: 6px;
+  background: repeating-linear-gradient(90deg, var(--rail-off) 0 8px, transparent 8px 14px);
+}
+
+/* 轨道的进站半段 / 出站半段；rtl 行里左右对调 */
+.stop::before {
+  left: 0;
+}
+
+.stop::after {
+  right: 0;
+}
+
+.row.rtl .stop::before {
+  left: auto;
+  right: 0;
+}
+
+.row.rtl .stop::after {
+  right: auto;
+  left: 0;
+}
+
+.stop.lit-in::before,
+.stop.lit-out::after {
+  background: var(--line);
+}
+
+.stop.row-start::before,
+.stop.row-end::after {
+  display: none;
+}
+
+.turn {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(var(--rail-y) - 3px);
+  width: calc(100% / var(--cols) / 2);
+  height: calc(var(--row-h) + 6px);
+  border: 6px dashed var(--rail-off);
+  border-inline-start: 0;
+  border-start-end-radius: 60px;
+  border-end-end-radius: 60px;
+}
+
+.turn.lit {
+  border-style: solid;
+  border-color: var(--line);
+}
+
+.station {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin-top: calc(var(--rail-y) - 30px);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.station .node {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--rail-off);
+  border-radius: 50%;
+  background: var(--bg);
+  transition: transform 0.15s ease-out;
+}
+
+.station:disabled {
+  cursor: default;
+}
+
+.station.open .node {
+  width: 28px;
+  height: 28px;
+  border: 6px solid var(--line);
+  background: #fff;
+}
+
+.station.current .node {
+  animation: beckon 1.8s ease-out infinite;
+}
+
+@keyframes beckon {
+  0% {
+    box-shadow: 0 0 0 0 var(--line);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+/* 纪念章：双圈印、略歪，墨色跟线路色；全对是金色的“満点” */
+.station.stamped .node {
+  width: 54px;
+  height: 54px;
+  gap: 0;
+  align-content: center;
+  border: 2.5px solid var(--line);
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 3px var(--bg),
+    inset 0 0 0 4.5px var(--line);
+  color: var(--line);
+  transform: rotate(var(--tilt));
+  line-height: 1;
+}
+
+.station.stamped small {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.station.stamped b {
+  font-size: 21px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
-.stage .stars {
-  color: var(--gold);
-  font-size: 13px;
-  letter-spacing: 1px;
+.station.perfect .node {
+  --line: var(--gold);
 }
 
-.stage:not(:disabled):hover {
-  border-color: var(--line-strong);
-  background: var(--panel-strong);
+.station.perfect b {
+  font-size: 15px;
+  letter-spacing: 0.04em;
 }
 
-.stage.current {
-  border-color: var(--blue);
+.station:not(:disabled):hover .node {
+  transform: rotate(var(--tilt, 0deg)) scale(1.1);
 }
 
-.stage:disabled {
-  cursor: default;
-  background: transparent;
+.station.thunk .node {
+  animation: thunk 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+@keyframes thunk {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--tilt)) scale(2.2);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(var(--tilt)) scale(0.92);
+  }
+  100% {
+    transform: rotate(var(--tilt)) scale(1);
+  }
+}
+
+.stop .label {
+  margin-top: 4px;
   color: var(--faint);
+  font-family: var(--mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
-.stage:disabled .stars {
-  color: var(--line-strong);
+.stop:has(.open) .label {
+  color: var(--ink);
 }
 
-button:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
+.stop .label .err {
+  margin-left: 4px;
+  color: var(--red);
+  font-family: inherit;
 }
 
-/* ---- 打字 ---- */
+/* ---- 打字：站名牌 ---- */
 
 .playbar {
   display: flex;
@@ -260,8 +601,18 @@ button:focus-visible {
 }
 
 .where {
-  font-weight: 600;
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kind-note {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 15px;
 }
 
 .stat {
@@ -272,50 +623,279 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.ghost {
-  padding: 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
+/* 这一关的线路：每个词一站，小电车跟着走 */
+.route {
+  position: relative;
+  height: 34px;
+  margin: 0 12px;
 }
 
-.ghost:hover {
-  color: var(--ink);
-  border-color: var(--line-strong);
-}
-
-.track {
+.route::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 25px;
   height: 4px;
   border-radius: 2px;
-  background: var(--panel-strong);
-  overflow: hidden;
+  background: var(--rail-off);
 }
 
-.fill {
-  height: 100%;
-  width: 0;
-  background: var(--blue);
-  transition: width 0.15s ease-out;
+.route-dots i {
+  position: absolute;
+  top: 27px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rail-off);
+  transform: translate(-50%, -50%);
+  transition: background 0.2s;
 }
 
-.card {
+.route-dots i.ok {
+  background: var(--line);
+}
+
+.route-dots i.no {
+  background: var(--red);
+}
+
+.route-dots i.now {
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--line);
+  background: #fff;
+}
+
+.route-dots i.now.no {
+  border-color: var(--red);
+}
+
+.train {
+  position: absolute;
+  top: 0;
+  color: var(--line);
+  transform: translateX(-50%);
+  transition: left 0.35s cubic-bezier(0.5, 0, 0.3, 1);
+  line-height: 0;
+}
+
+.sign {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 36px 20px 32px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel);
-  text-align: center;
+  margin: 4px 6px 0;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fffdf6, var(--sign) 55%, #e9e5da);
+  color: var(--sign-ink);
+  box-shadow:
+    0 0 0 6px #222a3a,
+    0 0 0 7px #3a465d,
+    0 24px 70px -24px rgba(255, 236, 190, 0.35);
+  overflow: hidden;
   cursor: text;
 }
 
-.card.miss {
+.plate {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 40px;
+  padding: 2px 5px 3px;
+  border: 3px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.plate small {
+  font-size: 11px;
+}
+
+.plate b {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sign-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 24px 26px;
+  text-align: center;
+}
+
+.sign-body.arrive {
+  animation: arrive 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+}
+
+.meaning {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.headword {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.reading {
+  min-height: 1.5em;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--sign-faint);
+  overflow-wrap: anywhere;
+}
+
+.reading .done {
+  color: var(--sign-ink);
+}
+
+.romaji {
+  min-height: 1.4em;
+  font-family: var(--mono);
+  font-size: 22px;
+  letter-spacing: 0.05em;
+  color: var(--sign-faint);
+  overflow-wrap: anywhere;
+}
+
+.romaji .typed {
+  color: var(--line-ink);
+  font-weight: 600;
+}
+
+.romaji .cursor {
+  color: var(--sign-ink);
+  border-bottom: 3px solid var(--line-ink);
+}
+
+.romaji .caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+  border-bottom: 3px solid var(--line-ink);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    border-bottom-color: transparent;
+  }
+}
+
+.romaji .gap {
+  white-space: pre;
+}
+
+.sign.sentence .meaning {
+  font-size: 24px;
+}
+
+.sign.sentence .headword {
+  font-size: 23px;
+}
+
+.sign.sentence .reading {
+  font-size: 19px;
+  letter-spacing: 0.02em;
+}
+
+.sign.sentence .romaji {
+  font-size: 18px;
+}
+
+/* 站牌下沿的线路色带：左边上一站（刚打完的），右边下一站 */
+.band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 14px;
+  background: var(--line);
+  color: var(--on-line);
+  font-size: 15px;
+}
+
+.previous {
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.previous .word b {
+  margin-right: 8px;
+  font-size: 17px;
+}
+
+.previous .roma {
+  font-family: var(--mono);
+  opacity: 0.85;
+}
+
+.previous .mark {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  align-self: center;
+}
+
+.previous .mark.ok {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.previous .mark.no {
+  background: #c62828;
+  color: #fff;
+}
+
+.previous .origin,
+.next-stop {
+  font-family: var(--jp-font);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sign.miss {
   animation: shake 0.2s;
-  border-color: var(--red);
+  box-shadow:
+    0 0 0 6px #222a3a,
+    0 0 0 7px var(--red),
+    0 0 40px -6px var(--red);
+}
+
+.sign.miss .romaji .cursor {
+  color: #d32f2f;
+  border-bottom-color: #d32f2f;
+}
+
+.sign.miss .romaji .caret {
+  border-bottom-color: #d32f2f;
+  animation: none;
 }
 
 @keyframes shake {
@@ -327,96 +907,7 @@ button:focus-visible {
   }
 }
 
-.card.sentence .meaning {
-  font-size: 24px;
-}
-
-.card.sentence .headword {
-  font-size: 22px;
-}
-
-.card.sentence .reading {
-  font-size: 18px;
-}
-
-.card.sentence .romaji {
-  font-size: 20px;
-}
-
-.headword {
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.reading {
-  min-height: 1.5em;
-  font-size: 22px;
-  color: var(--muted);
-  overflow-wrap: anywhere;
-}
-
-.reading .done {
-  color: var(--green);
-}
-
-.meaning {
-  font-size: 30px;
-  font-weight: 600;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.romaji {
-  min-height: 1.4em;
-  margin-top: 8px;
-  font-family: var(--mono);
-  font-size: 26px;
-  letter-spacing: 0.04em;
-  color: var(--faint);
-  overflow-wrap: anywhere;
-}
-
-.romaji .typed {
-  color: var(--ink);
-}
-
-.romaji .cursor {
-  color: var(--ink);
-  border-bottom: 2px solid var(--blue);
-}
-
-.card.miss .romaji .cursor {
-  color: var(--red);
-  border-bottom-color: var(--red);
-}
-
-.romaji .caret {
-  display: inline-block;
-  width: 0.6em;
-  height: 1.1em;
-  vertical-align: -0.15em;
-  border-bottom: 2px solid var(--blue);
-  animation: blink 1s steps(1) infinite;
-}
-
-@keyframes blink {
-  50% {
-    border-bottom-color: transparent;
-  }
-}
-
-.card.miss .romaji .caret {
-  border-bottom-color: var(--red);
-  animation: none;
-}
-
-.romaji .gap {
-  white-space: pre;
-}
-
-/* 真正接收按键的输入框：看不见但能拿到焦点，手机上点卡片会弹出键盘 */
+/* 真正接收按键的输入框：看不见但能拿到焦点，手机上点站牌会弹出键盘 */
 .keys {
   position: absolute;
   left: 0;
@@ -429,10 +920,15 @@ button:focus-visible {
   font-size: 16px;
 }
 
-.warn {
-  margin: 0;
-  color: var(--red);
-  text-align: center;
+/* 月台边的黄色导盲砖 */
+.platform {
+  height: 12px;
+  margin: 10px 0 0;
+  border-radius: 3px;
+  background:
+    radial-gradient(circle, #b3901f 2.2px, transparent 2.8px) 0 0 / 11px 11px,
+    #e3bf3c;
+  opacity: 0.8;
 }
 
 .below {
@@ -442,33 +938,8 @@ button:focus-visible {
   min-height: 36px;
 }
 
-.previous {
-  flex: 1;
-  min-width: 0;
+.warn {
   margin: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  color: var(--muted);
-  font-size: 15px;
-}
-
-.previous .word b {
-  margin-right: 8px;
-  color: var(--ink);
-  font-size: 17px;
-}
-
-.previous .roma {
-  font-family: var(--mono);
-}
-
-.previous .mark.ok {
-  color: var(--green);
-}
-
-.previous .mark.no {
   color: var(--red);
 }
 
@@ -477,56 +948,165 @@ button:focus-visible {
   margin-left: auto;
 }
 
-/* ---- 结算 ---- */
+/* ---- 结算：车票 ---- */
 
-.verdict {
+.ticket {
+  position: relative;
+  align-self: center;
+  width: min(560px, 100%);
+  padding: 20px 26px 16px;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(-45deg, rgba(40, 110, 90, 0.07) 0 2px, transparent 2px 7px),
+    #d9ece2;
+  color: #1c2a24;
+  /* 两侧半圆缺口 */
+  -webkit-mask:
+    radial-gradient(circle at left 50%, transparent 11px, #000 11.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at right 50%, transparent 11px, #000 11.5px) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle at left 50%, transparent 11px, #000 11.5px) left / 51% 100% no-repeat,
+    radial-gradient(circle at right 50%, transparent 11px, #000 11.5px) right / 51% 100% no-repeat;
+  animation: issue 0.4s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes issue {
+  from {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+}
+
+.ticket-head {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  padding-right: 34px;
+  color: #3d5a4d;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+.ticket-route {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding-top: 8px;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
-.stars.big {
-  color: var(--gold);
-  font-size: 40px;
-  letter-spacing: 6px;
+.ticket-route b[lang='ja'] {
+  font-family: var(--jp-font);
+  font-size: 28px;
 }
 
-.stars.big.none {
-  color: var(--line-strong);
+.ticket-route .arrow {
+  color: var(--line-ink);
 }
 
-.verdict h2 {
-  margin: 0;
-  font-size: 22px;
+.ticket-route .blocked {
+  color: #8a9a92;
+  text-decoration: line-through 3px;
+}
+
+.ticket h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .numbers {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin: 0;
-}
-
-.numbers div {
-  padding: 12px 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-  text-align: center;
+  margin: 14px 0 0;
+  padding: 10px 0;
+  border-block: 1px solid rgba(28, 42, 36, 0.18);
 }
 
 .numbers dt {
-  color: var(--faint);
+  color: #4f6a5e;
   font-size: 13px;
 }
 
 .numbers dd {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.ticket-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  min-height: 46px;
+  padding: 10px 92px 0 0;
+  color: #4f6a5e;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 检票口打的孔：过关才有 */
+.punch {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 18px;
+  height: 18px;
+  background: var(--bg);
+  clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%);
+  transform: scale(0);
+}
+
+.ticket.passed .punch {
+  animation: punch 0.25s 0.35s ease-out both;
+}
+
+@keyframes punch {
+  to {
+    transform: scale(1);
+  }
+}
+
+.seal {
+  position: absolute;
+  right: 20px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border: 3px double currentColor;
+  border-radius: 50%;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  transform: rotate(-14deg);
+  animation: seal 0.45s 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.seal.ok {
+  color: #c8312c;
+}
+
+.seal.no {
+  color: #6d7d75;
+}
+
+.seal.review {
+  color: #8a5a12;
+}
+
+@keyframes seal {
+  from {
+    opacity: 0;
+    transform: rotate(-14deg) scale(2);
+  }
 }
 
 .rules {
@@ -545,97 +1125,144 @@ button:focus-visible {
 
 .actions button {
   padding: 10px 18px;
-  border: 1px solid var(--line-strong);
   border-radius: 10px;
-  background: var(--panel-strong);
   font-size: 15px;
 }
 
-.actions button.primary {
-  border-color: var(--blue);
-  background: #2a3d55;
+.actions button:not(.primary) {
+  border: 1px solid var(--edge-strong);
+  background: var(--panel-strong);
 }
 
 .actions button.ghost {
   background: transparent;
 }
 
-kbd {
-  margin-left: 4px;
-  padding: 0 5px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  color: var(--faint);
-  font-family: var(--mono);
-  font-size: 11px;
+.missed-title {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
 }
 
-@media (hover: none) {
-  kbd {
-    display: none;
-  }
+/* ---- 忘れ物：行李牌 ---- */
+
+.note {
+  margin: 0;
+  color: var(--muted);
 }
 
-.missed {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.missed li {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
+.filter {
+  display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 10px 2px;
-  border-bottom: 1px solid var(--line);
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--panel);
   font-size: 15px;
 }
 
-.missed .word b {
-  font-size: 17px;
-  margin-right: 8px;
+.filter .count {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
-.missed .kana {
+.filter[aria-selected='true'] {
+  border-color: var(--led);
+  background: var(--panel-strong);
+}
+
+.start {
+  align-self: flex-start;
+}
+
+.empty {
+  margin: 0;
   color: var(--muted);
 }
 
-.missed .roma {
-  font-family: var(--mono);
-  color: var(--muted);
+.missed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.missed .zh {
-  color: var(--muted);
+.missed li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 14px 12px 34px;
+  background: #e8d6ad;
+  color: #2b2214;
+  font-size: 14px;
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
 }
 
-.missed .misses {
-  color: var(--red);
-  font-size: 13px;
-  white-space: nowrap;
+/* 牌子上的穿绳孔 */
+.missed li::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px #c7b07e;
 }
 
-/* 句子太长，摞成三行：原句、罗马音、中文 */
 .missed li.sentence {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 12px;
+  grid-column: 1 / -1;
 }
 
-.missed li.sentence .roma,
-.missed li.sentence .zh {
-  grid-column: 1;
+.missed .word {
+  overflow-wrap: anywhere;
 }
 
-.missed li.sentence .misses {
-  grid-row: 1;
-  grid-column: 2;
+.missed .word b {
+  margin-right: 8px;
+  font-size: 19px;
 }
 
 .missed li.sentence .word b {
   font-size: 16px;
-  font-weight: 600;
+}
+
+.missed .kana {
+  color: #6e5c3a;
+}
+
+.missed .roma {
+  color: #5c4b2c;
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.missed .zh {
+  color: #3a2f1c;
+}
+
+/* 状态放在牌子第一行，像手写在标签顶上的编号 */
+.missed .misses {
+  order: -1;
+  color: #b0302a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .sr-only {
@@ -649,48 +1276,94 @@ kbd {
 
 @media (max-width: 560px) {
   .app {
-    padding-top: 28px;
+    padding-top: 24px;
   }
 
-  .level {
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 10px 4px;
-  }
-
-  .meaning {
-    font-size: 24px;
-  }
-
-  .headword {
-    font-size: 26px;
-  }
-
-  .romaji {
+  .dest {
     font-size: 22px;
   }
 
-  .card {
-    padding: 28px 14px 24px;
+  .board-go {
+    margin-left: 0;
+    flex: 1 0 100%;
+  }
+
+  .line-tab {
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 6px 8px;
+    text-align: center;
+  }
+
+  .line-tab .symbol {
+    width: 36px;
+    height: 36px;
+    border-width: 4px;
+    font-size: 12px;
+  }
+
+  .line-tab .info {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .line-tab .count {
+    font-size: 13px;
+  }
+
+  .book-tab .count {
+    font-size: 14px;
+  }
+
+  .sign-body {
+    padding: 50px 14px 22px;
+  }
+
+  .meaning {
+    font-size: 25px;
+  }
+
+  .headword {
+    font-size: 28px;
+  }
+
+  .reading {
+    font-size: 22px;
+  }
+
+  .romaji {
+    font-size: 19px;
+  }
+
+  .ticket {
+    padding: 18px 20px 14px;
+  }
+
+  .ticket-route {
+    font-size: 26px;
   }
 
   .numbers {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .missed li {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 12px;
+  .seal {
+    width: 62px;
+    height: 62px;
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 
-  .missed .roma,
-  .missed .zh {
-    grid-column: 1;
-  }
-
-  .missed .misses {
-    grid-row: 1;
-    grid-column: 2;
+  .ticker span {
+    animation: none;
   }
 }

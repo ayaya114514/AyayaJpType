@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   answersFor,
+  emptyProgress,
+  isPassed,
+  isUnlocked,
   makeSentenceDeck,
   markMistake,
   mistakeEntries,
   parseMistakes,
+  parseProgress,
+  record,
   WORDS,
   type Answer,
   type Mistakes,
@@ -31,6 +36,39 @@ describe('answersFor', () => {
     expect(session.finished).toBe(true)
     expect(session.misses).toBe(0)
     expect(answers[session.answered[0]].entry.headword).toBe('幸せ')
+  })
+})
+
+describe('闯关进度', () => {
+  it('对 5 个及以上就过关并解锁下一关', () => {
+    const progress = emptyProgress()
+    record(progress, 'N5', 0, { known: 4, total: 20 })
+    expect(isPassed(progress, 'N5', 0)).toBe(false)
+    expect(isUnlocked(progress, 'N5', 1)).toBe(false)
+    record(progress, 'N5', 0, { known: 5, total: 20 })
+    expect(isPassed(progress, 'N5', 0)).toBe(true)
+    expect(isUnlocked(progress, 'N5', 1)).toBe(true)
+  })
+
+  it('只保留错得最少的那次', () => {
+    const progress = emptyProgress()
+    record(progress, 'N4', 2, { known: 18, total: 20 })
+    record(progress, 'N4', 2, { known: 9, total: 20 })
+    expect(progress.N4[2]).toEqual({ known: 18, total: 20 })
+    record(progress, 'N4', 2, { known: 20, total: 20 })
+    expect(progress.N4[2]).toEqual({ known: 20, total: 20 })
+  })
+
+  it('读旧的星级存档：过关的仍然过关，坏数据丢掉', () => {
+    const raw = JSON.stringify({
+      N5: { 0: { stars: 2, known: 19, total: 20 }, 1: { stars: 1, known: 18, total: 20 }, 2: { stars: 3 } },
+      N3: { 0: { known: 30, total: 20 } },
+    })
+    const progress = parseProgress(raw)
+    expect(progress.N5).toEqual({ 0: { known: 19, total: 20 }, 1: { known: 18, total: 20 } })
+    expect(isUnlocked(progress, 'N5', 2)).toBe(true)
+    expect(progress.N3).toEqual({})
+    expect(parseProgress('{oops')).toEqual(emptyProgress())
   })
 })
 

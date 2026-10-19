@@ -3,19 +3,20 @@ import { buildWord, Session, wordOf } from './kana'
 import {
   answersFor,
   CLEAR_STREAK,
+  errorsOf,
   isPassed,
   isUnlocked,
   LEVELS,
   loadSentences,
   markMistake,
-  MAX_UNKNOWN,
   mistakeEntries,
   parseMistakes,
   parseProgress,
   passedCount,
+  PASS_KNOWN,
+  passes,
   record,
   shuffle,
-  starsFor,
   WORDS,
   type Answer,
   type Deck,
@@ -36,10 +37,19 @@ const kindsEl = $<HTMLDivElement>('kinds')
 const levelsEl = $<HTMLDivElement>('levels')
 const stagesEl = $<HTMLOListElement>('stages')
 const loadingEl = $<HTMLParagraphElement>('loading')
+const boardEl = $<HTMLDivElement>('board')
+const boardType = $<HTMLSpanElement>('board-type')
+const boardDest = $<HTMLSpanElement>('board-dest')
+const boardMeta = $<HTMLSpanElement>('board-meta')
+const boardGo = $<HTMLButtonElement>('board-go')
 const whereEl = $<HTMLSpanElement>('where')
 const liveEl = $<HTMLSpanElement>('live')
-const fillEl = $<HTMLDivElement>('fill')
+const routeDots = $<HTMLDivElement>('route-dots')
+const trainEl = $<HTMLSpanElement>('train')
 const card = $<HTMLDivElement>('card')
+const plateEl = $<HTMLSpanElement>('plate')
+const signBody = $<HTMLDivElement>('sign-body')
+const nextStopEl = $<HTMLSpanElement>('next-stop')
 const headwordEl = $<HTMLDivElement>('headword')
 const readingEl = $<HTMLDivElement>('reading')
 const meaningEl = $<HTMLDivElement>('meaning')
@@ -68,7 +78,7 @@ const storage = {
 }
 
 const KIND_KEY = 'ayaya-jp-type:kind'
-// 单词沿用原来的 key；progress:v2 是改成盲打后星级按“会的词数”算的版本
+// 单词沿用原来的 key；progress:v2 是改成盲打后按“会的词数”记成绩的版本（去掉星星后结构兼容）
 const KEYS: Record<Kind, { progress: string; mistakes: string; level: string }> = {
   word: {
     progress: 'ayaya-jp-type:progress:v2',
@@ -83,6 +93,11 @@ const KEYS: Record<Kind, { progress: string; mistakes: string; level: string }> 
 }
 const KIND_NAMES: Record<Kind, string> = { word: '单词', sentence: '句子' }
 const UNIT: Record<Kind, string> = { word: '个', sentence: '句' }
+// 单词站站停，句子长一些算特急
+const TRAIN: Record<Kind, { short: string; long: string }> = {
+  word: { short: '各停', long: '各駅停車' },
+  sentence: { short: '特急', long: '特急' },
+}
 
 /** 一种模式的题库和存档 */
 interface Book {
@@ -133,9 +148,16 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text 
   return node
 }
 
-const starText = (stars: number) => '★'.repeat(stars) + '☆'.repeat(3 - stars)
+const typeBadge = (k: Kind) => {
+  const badge = el('span', `type ${k}`, TRAIN[k].short)
+  badge.lang = 'ja'
+  return badge
+}
 
-// ---- 选关 ----
+/** 站点编号：级别是线路，关卡是第几站（N5-07） */
+const stationNo = (lv: Level, stage: number) => `${lv}-${String(stage + 1).padStart(2, '0')}`
+
+// ---- 路线图 ----
 
 /** 第一个还没过的关（全过了就是最后一关） */
 const currentStage = (b: Book) => {
@@ -146,7 +168,8 @@ const currentStage = (b: Book) => {
 function renderKinds() {
   kindsEl.replaceChildren(
     ...(['word', 'sentence'] as Kind[]).map((k) => {
-      const tab = el('button', 'kind', KIND_NAMES[k])
+      const tab = el('button', 'kind')
+      tab.append(typeBadge(k), el('span', '', KIND_NAMES[k]))
       tab.type = 'button'
       tab.setAttribute('role', 'tab')
       tab.setAttribute('aria-selected', String(k === kind))
@@ -174,23 +197,61 @@ function renderHome() {
   renderKinds()
   const b = current()
   loadingEl.hidden = Boolean(b)
-  levelsEl.hidden = !b
-  stagesEl.hidden = !b
+  for (const node of [boardEl, levelsEl, stagesEl]) node.hidden = !b
   if (!b) {
     loadingEl.textContent = '句子加载中'
     return
   }
+  home.dataset.line = b.level
+  renderBoard(b)
+  renderLines(b)
+  renderMap(b)
+}
 
+const TICKER = [
+  '看中文，凭记忆打出罗马音',
+  '卡住按 Tab 看答案，看过的算错',
+  `一站对 ${PASS_KNOWN} 个就能开往下一站`,
+  '看过答案的会送到忘れ物センター',
+].join('　・　')
+$('ticker').textContent = `${TICKER}　・　${TICKER}　・　`
+
+/** 发车标：下一班就是第一个还没过的站 */
+function renderBoard(b: Book) {
+  const stage = currentStage(b)
+  const stages = b.deck.stages[b.level]
+  const score = b.progress[b.level][stage]
+  boardType.replaceChildren(typeBadge(b.kind))
+  boardDest.textContent = stationNo(b.level, stage)
+  boardMeta.textContent =
+    passedCount(b.deck, b.progress, b.level) === stages.length
+      ? `${b.level} 全线通过`
+      : `${stages[stage].length} ${UNIT[b.kind]}` + (score ? ` · 上次错 ${errorsOf(score)}` : '')
+}
+
+boardGo.addEventListener('click', () => {
+  const b = current()
+  if (b) startStage(b, b.level, currentStage(b))
+})
+
+function renderLines(b: Book) {
   levelsEl.replaceChildren(
     ...LEVELS.map((lv) => {
-      const tab = el('button', 'level')
+      const tab = el('button', 'line-tab')
       tab.type = 'button'
+      tab.dataset.line = lv
       tab.setAttribute('role', 'tab')
       tab.setAttribute('aria-selected', String(lv === b.level))
-      tab.append(
-        el('span', 'name', lv),
-        el('span', 'count', `${passedCount(b.deck, b.progress, lv)} / ${b.deck.stages[lv].length}`),
-      )
+      const passed = passedCount(b.deck, b.progress, lv)
+      const total = b.deck.stages[lv].length
+      const bar = el('span', 'bar')
+      const fill = el('i')
+      fill.style.width = `${(passed / total) * 100}%`
+      bar.append(fill)
+      const info = el('span', 'info')
+      info.append(el('span', 'count', `${passed} / ${total}`), bar)
+      tab.append(el('span', 'symbol', lv), info)
+      tab.setAttribute('aria-label', `${lv} 线，${total} 站过了 ${passed} 站`)
       tab.addEventListener('click', () => {
         b.level = lv
         saveLevel(b)
@@ -199,39 +260,104 @@ function renderHome() {
       return tab
     }),
   )
-  const bookTab = el('button', 'level book-tab')
+  const bookTab = el('button', 'line-tab book-tab')
   bookTab.type = 'button'
-  bookTab.append(el('span', 'name', '错题'), el('span', 'count', String(mistakeEntries(b.deck, b.mistakes).length)))
+  const info = el('span', 'info')
+  const name = el('span', 'name', '忘れ物')
+  name.lang = 'ja'
+  info.append(name, el('span', 'count', String(mistakeEntries(b.deck, b.mistakes).length)))
+  bookTab.append(el('span', 'symbol', '忘'), info)
   bookTab.addEventListener('click', () => showBook())
   levelsEl.append(bookTab)
-
-  const now = currentStage(b)
-  stagesEl.replaceChildren(
-    ...b.deck.stages[b.level].map((entries, i) => {
-      const li = el('li')
-      const button = el('button', 'stage')
-      button.type = 'button'
-      const score = b.progress[b.level][i]
-      const unlocked = isUnlocked(b.progress, b.level, i)
-      button.disabled = !unlocked
-      if (i === now && unlocked) button.classList.add('current')
-      button.append(el('span', 'num', String(i + 1)), el('span', 'stars', starText(score?.stars ?? 0)))
-      button.setAttribute(
-        'aria-label',
-        `第 ${i + 1} 关，${entries.length} ${UNIT[b.kind]}，` +
-          (unlocked ? (score ? `${score.stars} 星` : '未通过') : '未解锁'),
-      )
-      button.addEventListener('click', () => startStage(b, b.level, i))
-      li.append(button)
-      return li
-    }),
-  )
 }
+
+/** 刚过关（或刷新了最好成绩）的站，回到路线图时盖章动画 */
+let stamped: { kind: Kind; level: Level; stage: number } | null = null
+let mapCols = 0
+
+// 路线蛇形排列：每行几站跟着屏幕宽度走
+const columnsFor = () => Math.max(3, Math.min(7, Math.floor((Math.min(window.innerWidth, 760) - 32) / 92)))
+
+function renderMap(b: Book) {
+  const stages = b.deck.stages[b.level]
+  const now = currentStage(b)
+  mapCols = columnsFor()
+  stagesEl.style.setProperty('--cols', String(mapCols))
+  const rows: HTMLElement[] = []
+  for (let start = 0; start < stages.length; start += mapCols) {
+    // 单数行从右往左走，行尾用一段弯道接到下一行
+    const row = el('div', (start / mapCols) % 2 ? 'row rtl' : 'row')
+    const end = Math.min(start + mapCols, stages.length)
+    for (let i = start; i < end; i++) row.append(stationCell(b, i, i === now, i === start, i === end - 1))
+    if (end < stages.length) row.append(el('span', isPassed(b.progress, b.level, end - 1) ? 'turn lit' : 'turn'))
+    rows.push(row)
+  }
+  stagesEl.replaceChildren(...rows)
+}
+
+function stationCell(b: Book, i: number, now: boolean, rowStart: boolean, rowEnd: boolean) {
+  const { progress, level } = b
+  const score = progress[level][i]
+  const unlocked = isUnlocked(progress, level, i)
+  const passed = isPassed(progress, level, i)
+  const cell = el('div', 'stop')
+  cell.setAttribute('role', 'listitem')
+  cell.classList.toggle('row-start', rowStart)
+  cell.classList.toggle('row-end', rowEnd)
+  // 过了的站和下一站之间的轨道亮起来
+  cell.classList.toggle('lit-in', i > 0 && isPassed(progress, level, i - 1))
+  cell.classList.toggle('lit-out', passed)
+
+  const button = el('button', 'station')
+  button.type = 'button'
+  button.disabled = !unlocked
+  const node = el('span', 'node')
+  if (score && passed) {
+    const errors = errorsOf(score)
+    button.classList.add('stamped')
+    button.style.setProperty('--tilt', `${((i * 37) % 19) - 9}deg`)
+    if (errors === 0) {
+      button.classList.add('perfect')
+      node.lang = 'ja'
+      node.append(el('b', '', '満点'))
+    } else {
+      node.append(el('small', '', '错'), el('b', '', String(errors)))
+    }
+    if (stamped && stamped.kind === b.kind && stamped.level === level && stamped.stage === i) {
+      button.classList.add('thunk')
+    }
+  } else if (unlocked) {
+    button.classList.add('open')
+    if (now) button.classList.add('current')
+  }
+  button.append(node)
+  button.setAttribute(
+    'aria-label',
+    `${stationNo(level, i)}，${b.deck.stages[level][i].length} ${UNIT[b.kind]}，` +
+      (!unlocked ? '未解锁' : score ? `错 ${errorsOf(score)}${passed ? '' : '，还没过'}` : '还没打过'),
+  )
+  button.addEventListener('click', () => startStage(b, level, i))
+
+  const label = el('span', 'label', String(i + 1).padStart(2, '0'))
+  if (score && !passed) label.append(el('span', 'err', `错${errorsOf(score)}`))
+  cell.append(button, label)
+  return cell
+}
+
+window.addEventListener('resize', () => {
+  const b = current()
+  if (screen === 'home' && b && columnsFor() !== mapCols) renderMap(b)
+})
 
 function showHome() {
   show('home')
   renderHome()
-  stagesEl.querySelector<HTMLButtonElement>('.current')?.focus({ preventScroll: true })
+  stamped = null
+  const target = stagesEl.querySelector('.thunk, .current')
+  if (target && target.getBoundingClientRect().bottom > window.innerHeight - 40) {
+    target.scrollIntoView({ block: 'center' })
+  }
+  if (!boardEl.hidden) boardGo.focus({ preventScroll: true })
 }
 
 // ---- 错题集 ----
@@ -239,7 +365,7 @@ function showHome() {
 type BookFilter = Level | 'all'
 let bookFilter: BookFilter = 'all'
 
-const bookTitle = $<HTMLSpanElement>('book-title')
+const bookKind = $<HTMLSpanElement>('book-kind')
 const bookFiltersEl = $<HTMLDivElement>('book-filters')
 const bookStart = $<HTMLButtonElement>('book-start')
 const bookEmpty = $<HTMLParagraphElement>('book-empty')
@@ -271,7 +397,7 @@ function entryRow(b: Book, entry: Entry, status: string) {
 function renderBook() {
   const b = current()
   if (!b) return
-  bookTitle.textContent = `${KIND_NAMES[b.kind]}错题集`
+  bookKind.textContent = `· ${KIND_NAMES[b.kind]}`
   bookFiltersEl.replaceChildren(
     ...(['all', ...LEVELS] as BookFilter[]).map((f) => {
       const tab = el('button', 'filter')
@@ -359,11 +485,20 @@ function startRun(b: Book, entries: Entry[], mode: Mode) {
     startedAt: 0,
     endedAt: 0,
   }
-  const prefix = b.kind === 'sentence' ? '句子 · ' : ''
-  whereEl.textContent = 'review' in mode ? `${prefix}错题练习` : `${prefix}${mode.level} · 第 ${mode.stage + 1} 关`
+  whereEl.replaceChildren(
+    typeBadge(b.kind),
+    el('span', '', 'review' in mode ? '忘れ物练习' : stationNo(mode.level, mode.stage)),
+  )
   card.classList.toggle('sentence', b.kind === 'sentence')
   warnEl.hidden = true
-  previousEl.replaceChildren()
+  previousEl.replaceChildren(el('span', 'origin', '◀ 始発'))
+  routeDots.replaceChildren(
+    ...entries.map((_, i) => {
+      const dot = el('i')
+      dot.style.left = routeLeft(i, entries.length)
+      return dot
+    }),
+  )
   show('play')
   renderEntry()
   renderLive()
@@ -389,7 +524,20 @@ function renderLive() {
   const { session, entries } = run
   const counter = `${Math.min(session.index + 1, entries.length)} / ${entries.length}`
   const unknown = entries.slice(0, session.index + 1).filter((_, i) => !isKnown(run!, i)).length
-  liveEl.textContent = run.startedAt ? `${counter} · 不会 ${unknown}` : counter
+  liveEl.textContent = `${counter} · 错 ${unknown}`
+}
+
+const routeLeft = (i: number, total: number) => `${total > 1 ? (i / (total - 1)) * 100 : 50}%`
+
+/** 顶部线路：打完的站按会 / 不会上色，小电车停在当前这站 */
+function renderRoute() {
+  if (!run) return
+  const { session, entries } = run
+  ;[...routeDots.children].forEach((dot, i) => {
+    dot.className =
+      i < session.index ? (isKnown(run!, i) ? 'ok' : 'no') : i === session.index ? (isKnown(run!, i) ? 'now' : 'now no') : ''
+  })
+  trainEl.style.left = routeLeft(Math.min(session.index, entries.length - 1), entries.length)
 }
 
 function renderEntry() {
@@ -401,7 +549,16 @@ function renderEntry() {
   headwordEl.hidden = true
   meaningEl.textContent = entry.meaning
   revealButton.hidden = false
-  fillEl.style.width = `${(session.index / entries.length) * 100}%`
+  play.dataset.line = entry.level
+  plateEl.replaceChildren(el('small', '', entry.level), el('b', '', String(session.index + 1).padStart(2, '0')))
+  nextStopEl.textContent = session.index === entries.length - 1 ? '終点' : 'つぎ ？？？ ▶'
+  // 进站：站牌内容从右边滑进来
+  if (session.index > 0) {
+    signBody.classList.remove('arrive')
+    void signBody.offsetWidth
+    signBody.classList.add('arrive')
+  }
+  renderRoute()
   renderTyping()
 }
 
@@ -446,6 +603,7 @@ function renderTyping() {
 /** 卡片下方显示刚打完的那条：按你实际打的那个答案显示（其他读法没有审核过的 romaji，就不显示 romaji） */
 function renderPrevious(b: Book, answer: Answer, known: boolean) {
   previousEl.replaceChildren(
+    el('span', 'arrow', '◀'),
     el('span', known ? 'mark ok' : 'mark no', known ? '✓' : '✗'),
     entryCell(b, answer.entry, answer.reading),
   )
@@ -466,6 +624,7 @@ function reveal() {
   run.revealed[run.session.index] = true
   if (!run.startedAt) run.startedAt = performance.now()
   revealButton.hidden = true
+  renderRoute()
   renderTyping()
   renderLive()
   focusKeys()
@@ -530,10 +689,18 @@ function leavePlay() {
 
 // ---- 结算 ----
 
-const resultStars = $<HTMLDivElement>('result-stars')
+const ticketEl = $<HTMLDivElement>('ticket')
+const ticketTitle = $<HTMLSpanElement>('ticket-title')
+const ticketKind = $<HTMLSpanElement>('ticket-kind')
+const ticketFrom = $<HTMLElement>('ticket-from')
+const ticketArrow = $<HTMLSpanElement>('ticket-arrow')
+const ticketTo = $<HTMLElement>('ticket-to')
+const ticketDate = $<HTMLSpanElement>('ticket-date')
+const sealEl = $<HTMLSpanElement>('seal')
 const resultTitle = $<HTMLHeadingElement>('result-title')
 const numbersEl = $<HTMLDListElement>('numbers')
 const rulesEl = $<HTMLParagraphElement>('rules')
+const missedTitle = $<HTMLHeadingElement>('missed-title')
 const missedEl = $<HTMLUListElement>('missed')
 const nextButton = $<HTMLButtonElement>('next')
 const nextLabel = $<HTMLSpanElement>('next-label')
@@ -554,33 +721,62 @@ function finish() {
   const b = r.book
   clearInterval(ticker)
   r.endedAt = performance.now()
-  fillEl.style.width = '100%'
   keysInput.blur()
 
   const { mode } = r
   const total = r.entries.length
   const known = r.entries.filter((_, i) => isKnown(r, i)).length
-  const stars = starsFor(known, total)
+  const errors = total - known
+  const score = { known, total }
+  const passed = passes(score)
   const review = 'review' in mode
-  if (!review && stars > 0) {
-    record(b.progress, mode.level, mode.stage, { stars, known, total })
+  if (!review) {
+    const old = b.progress[mode.level][mode.stage]
+    if (passed && (!old || !passes(old) || errorsOf(old) > errors)) {
+      stamped = { kind: b.kind, level: mode.level, stage: mode.stage }
+    }
+    record(b.progress, mode.level, mode.stage, score)
     saveProgress(b)
   }
-  last = { book: b, mode, entries: r.entries, passed: stars > 0 }
+  last = { book: b, mode, entries: r.entries, passed }
+  const unit = UNIT[b.kind]
+  const target = review ? null : following(b, mode.level, mode.stage)
 
-  resultStars.textContent = starText(stars)
-  resultStars.classList.toggle('none', stars === 0)
-  resultStars.hidden = review
-  const prefix = b.kind === 'sentence' ? '句子 ' : ''
-  resultTitle.textContent = review
-    ? `${prefix}错题练习完成`
-    : `${prefix}${mode.level} 第 ${mode.stage + 1} 关 ${stars > 0 ? '通过' : '未通过'}`
+  // 结算是一张车票：区间、错几个、检票口打孔和印章
+  ticketEl.dataset.line = review ? r.entries[0].level : mode.level
+  ticketEl.classList.toggle('passed', passed && !review)
+  ticketTitle.textContent = review ? '忘れ物 引換券' : '乗車券'
+  ticketKind.textContent = TRAIN[b.kind].long
+  ticketArrow.hidden = review
+  ticketTo.hidden = review
+  ticketTo.classList.toggle('blocked', !passed)
+  if (review) {
+    ticketFrom.textContent = '忘れ物センター'
+    ticketFrom.lang = 'ja'
+  } else {
+    ticketFrom.textContent = stationNo(mode.level, mode.stage)
+    ticketFrom.removeAttribute('lang')
+    ticketTo.textContent = target ? stationNo(...target) : '終点'
+  }
+  sealEl.textContent = review ? '受取' : passed ? '通過' : '回送'
+  sealEl.className = `seal ${review ? 'review' : passed ? 'ok' : 'no'}`
+
+  const left = review ? filtered(b, mode.review).length : 0
+  if (review) {
+    const cleared = r.entries.filter((e) => !b.mistakes[e.id]).length
+    resultTitle.textContent = `领回 ${cleared} ${unit} · 还剩 ${left} ${unit}`
+  } else if (passed) {
+    resultTitle.textContent =
+      `${errors ? `错 ${errors} ${unit}` : '一个没错'} · ` + (target ? `开往 ${stationNo(...target)}` : '已到终点')
+  } else {
+    resultTitle.textContent = `对 ${known} ${unit}，还差 ${Math.min(PASS_KNOWN, total) - known} ${unit}才能发车`
+  }
 
   const seconds = Math.round(elapsedMinutes(r) * 60)
   numbersEl.replaceChildren(
     ...[
-      ['会', `${known} / ${total}`],
-      ['看答案', String(r.revealed.filter(Boolean).length)],
+      ['对', `${known} / ${total}`],
+      ['错', String(errors)],
       ['准确率', `${(accuracyOf(r) * 100).toFixed(1)}%`],
       ['用时', `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`],
     ].map(([label, value]) => {
@@ -589,25 +785,31 @@ function finish() {
       return box
     }),
   )
-  const unit = UNIT[b.kind]
-  const left = review ? filtered(b, mode.review).length : 0
+  const today = new Date()
+  ticketDate.textContent = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('.')
+
   rulesEl.textContent = review
-    ? `连续答对 ${CLEAR_STREAK} 次的会移出错题集 · 还剩 ${left} ${unit}`
-    : `★★★ 全会 · ★★ 不会 1 ${unit} · ★ 不会 ${MAX_UNKNOWN} ${unit} · 看答案的算不会，已收进错题集`
+    ? `连续 ${CLEAR_STREAK} 次不看答案打出来就能领回`
+    : `一站对 ${PASS_KNOWN} ${unit}就能开往下一站 · 看过答案的算错，已送到忘れ物センター`
 
   if (review) {
     nextButton.hidden = left === 0
     nextLabel.textContent = '再练一组'
   } else {
-    const target = following(b, mode.level, mode.stage)
-    nextButton.hidden = !(stars > 0 && target)
-    if (target) nextLabel.textContent = target[0] === mode.level ? '下一关' : `${target[0]} 第 1 关`
+    nextButton.hidden = !(passed && target)
+    if (target) nextLabel.textContent = target[0] === mode.level ? `开往 ${stationNo(...target)}` : `换乘 ${target[0]}`
   }
-  backLabel.textContent = review ? '错题集' : '选关'
+  backLabel.textContent = review ? '忘れ物' : '路线图'
 
   const missed = r.entries.filter((_, i) => r.revealed[i])
   missedEl.replaceChildren(...missed.map((entry) => entryRow(b, entry, '看答案')))
   missedEl.hidden = missed.length === 0
+  missedTitle.hidden = missed.length === 0
+  missedTitle.textContent = review ? `还没领回的 · ${missed.length}` : `这一站的忘れ物 · ${missed.length}`
 
   run = null
   show('result')
