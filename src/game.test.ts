@@ -19,23 +19,24 @@ import { buildWord, Session, Typer, wordOf } from './kana'
 import sentenceData from './sentences.json'
 
 const SENTENCES = makeSentenceDeck(sentenceData as SentenceData)
-const find = (headword: string) => WORDS.stages.N3.flat().find((e) => e.headword === headword)!
+const find = (headword: string) =>
+  Object.values(WORDS.stages).flat(2).find((e) => e.headword === headword)!
 const toWords = (answers: Answer[]) =>
   answers.map((a) => (a.romaji ? buildWord(a.reading, a.romaji) : wordOf(a.reading)))
 
 describe('answersFor', () => {
   it('释义完全一样的词互相算对，题目本身排第一', () => {
-    const answers = answersFor(WORDS, find('幸福'))
-    expect(answers.map((a) => a.reading)).toEqual(['こうふく', 'しあわせ'])
+    const answers = answersFor(WORDS, find('値'))
+    expect(answers.map((a) => a.reading)).toEqual(['ね', 'ねだん'])
   })
 
   it('Session 记下实际打的是哪个答案', () => {
-    const answers = answersFor(WORDS, find('幸福'))
+    const answers = answersFor(WORDS, find('値段'))
     const session = new Session([toWords(answers)])
-    for (const k of 'shiawase') session.key(k)
+    for (const k of 'ne') session.key(k)
     expect(session.finished).toBe(true)
     expect(session.misses).toBe(0)
-    expect(answers[session.answered[0]].entry.headword).toBe('幸せ')
+    expect(answers[session.answered[0]].entry.headword).toBe('値')
   })
 })
 
