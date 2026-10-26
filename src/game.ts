@@ -154,7 +154,7 @@ const answersOf = (entry: Entry): Answer[] => [
   ...entry.variants.map((reading) => ({ entry, reading, romaji: null })),
 ]
 
-/** 题目只显示中文，所以中文完全一样的（幸福：幸福 / 幸せ）都算对；第一个是题目本身的主读音 */
+/** 题目只显示中文，所以中文完全一样的（价格；价钱：値段 / 値）都算对；第一个是题目本身的主读音 */
 export function answersFor(deck: Deck, entry: Entry): Answer[] {
   const others = (deck.byMeaning.get(entry.meaning) ?? []).filter((e) => e !== entry)
   return [...answersOf(entry), ...others.flatMap(answersOf)]
